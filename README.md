@@ -1,2 +1,1 @@
-# GAN
-First step. Build a mini-GAN in Tensorflow. Help -> [link1](https://github.com/uclaacmai/Generative-Adversarial-Network-Tutorial/blob/master/Generative%20Adversarial%20Networks%20Tutorial.ipynb) and [link2](https://wiseodd.github.io/techblog/2016/09/17/gan-tensorflow/)
+# Semantic Segmentation
