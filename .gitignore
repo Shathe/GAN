@@ -1,4 +1,6 @@
 ./dataset*
+VOC
+VOC*/*
 ./*.pyc
 logs/
 model/

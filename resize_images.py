@@ -11,9 +11,10 @@ random.seed(os.urandom(9))
 
 from glob import glob
 
-for file in glob("./*/*/*/*"):
+for file in glob("./VOC2012/*/labels/*"):
 
     print(file)
+    
     desired_size = 224
     im = Image.open(file)
     old_size = im.size  # old_size[0] is in (width, height) format
@@ -22,11 +23,11 @@ for file in glob("./*/*/*/*"):
     # use thumbnail() or resize() method to resize the input image
     # thumbnail is a in-place operation
     # im.thumbnail(new_size, Image.ANTIALIAS)
-    im = im.resize(new_size, Image.BILINEAR)# NEAREST
+    im = im.resize(new_size, Image.NEAREST)# BILINEAR
     # create a new image and paste the resized on it
     new_im = Image.new("RGB", (desired_size, desired_size))
     new_im.paste(im, ((desired_size-new_size[0])//2,
                         (desired_size-new_size[1])//2))
 
     new_im.save(file)
-
+    
