@@ -19,7 +19,7 @@ random.seed(os.urandom(9))
 #tensorboard --logdir=train:./logs/train,test:./logs/test/
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--dataset", help="Dataset to train", default='./VOC2012')  # 'Datasets/MNIST-Big/'
+parser.add_argument("--dataset", help="Dataset to train", default='./camvid')  # 'Datasets/MNIST-Big/'
 parser.add_argument("--dimensions", help="Temporal dimensions to get from each sample", default=3)
 parser.add_argument("--tensorboard", help="Monitor with Tensorboard", default=0)
 parser.add_argument("--augmentation", help="Image augmentation", default=1)
@@ -29,7 +29,7 @@ parser.add_argument("--init_batch_size", help="batch_size", default=4)
 parser.add_argument("--max_batch_size", help="batch_size", default=12)
 parser.add_argument("--n_classes", help="number of classes to classify", default=21)
 parser.add_argument("--ignore_label", help="class to ignore", default=255)
-parser.add_argument("--epochs", help="Number of epochs to train", default=2)
+parser.add_argument("--epochs", help="Number of epochs to train", default=20)
 parser.add_argument("--width", help="width", default=224)
 parser.add_argument("--height", help="height", default=224)
 parser.add_argument("--save_model", help="dropout_rate", default=0)
@@ -92,6 +92,7 @@ uniques, idx = tf.unique(predictions)
 
 # funcion de coste: cross entropy (se pued modificar. mediado por todos los ejemplos)
 cost = tf.reduce_mean(tf.losses.softmax_cross_entropy(onehot_labels=labels, logits=predictions))
+#cost = -tf.reduce_mean(labels*tf.log(tf.nn.softmax(predctions)), axis=1)
 
 
 
@@ -135,17 +136,18 @@ tf.summary.scalar('learning_rate', learning_rate)
 
 if int(args.dimensions) == 3:
 
-	tf.summary.image('input', batch_images, max_outputs=20)
+	tf.summary.image('input', batch_images, max_outputs=10)
+	#tf.summary.image('input_re', tf.cast((batch_images + 0.5) * 255, tf.uint8), max_outputs=10)
+
 else:
-	tf.summary.image('input_0-3', batch_images[:, :, :, 0:3], max_outputs=20)
+	tf.summary.image('input_0-3', batch_images[:, :, :, 0:3], max_outputs=10)
 
 output_image = tf.expand_dims(tf.cast(tf.argmax(output, 3), tf.float32), -1)
-tf.summary.image('output', output_image, max_outputs=20)
+tf.summary.image('output', output_image, max_outputs=10)
 label_image = tf.expand_dims(tf.cast(tf.argmax(label, 3), tf.float32), -1)
-tf.summary.image('label', label_image, max_outputs=20)
+tf.summary.image('label', label_image, max_outputs=10)
 
-print(output_image.dtype)
-print(label_image.dtype)
+
 
 total_parameters = 0
 for variable in tf.trainable_variables():
@@ -261,7 +263,7 @@ with tf.Session() as sess:
 
 
 
-
+	'''
 
 	# TEST
 	count = 0
@@ -300,3 +302,4 @@ with tf.Session() as sess:
 
 
 	print(np.unique(predictions))
+	'''

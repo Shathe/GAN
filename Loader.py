@@ -102,13 +102,12 @@ class Loader:
 		# for every random image, get the image, label and mask.
 		# the augmentation has to be done separately due to augmentation
 		for index in range(size):
-
 			img = cv2.imread(random_images[index])
 			label = cv2.imread(random_labels[index],0)
 			if img.shape[1] != self.width and img.shape[0] != self.height:
 				img = cv2.resize(img, (self.width, self.height), interpolation = cv2.INTER_AREA)
 			if label.shape[1] != self.width and label.shape[0] != self.height:
-				label = cv2.resize(label, (self.width, self.height), interpolation = cv2.NEAREST)
+				label = cv2.resize(label, (self.width, self.height), interpolation = cv2.INTER_NEAREST)
 			macara = mask[index, :, :] 
 
 			if train and augmenter:
@@ -135,6 +134,7 @@ class Loader:
 			x[index, :, :, :] = img
 			y[index, :, :] = label
 			mask[index, :, :] = macara
+
 
 		# the labeling to categorical (if 5 classes and value is 2:  2 -> [0,0,1,0,0])
 		a, b, c =y.shape
@@ -171,7 +171,6 @@ class Loader:
 
 			x[index, :, :, :] = img
 			y[index] = classes[index]
-
 		# the labeling to categorical (if 5 classes and value is 2:  2 -> [0,0,1,0,0])
 		y = to_categorical(y, num_classes=len(self.classes))
 		# augmentation
@@ -212,7 +211,7 @@ if __name__ == "__main__":
 	x, y =loader.get_batch(size=2)
 	print(y)
 	'''
-	loader = Loader('./VOC2012', problemType = 'segmentation', ignore_label=255)
+	loader = Loader('./camvid', problemType = 'segmentation', ignore_label=11, n_classes=11)
 	x, y, mask =loader.get_batch(size=10)
 	print(x.shape)
 	print(np.argmax(y,3).shape)
