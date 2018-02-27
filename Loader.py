@@ -110,19 +110,47 @@ class Loader:
 				label = cv2.resize(label, (self.width, self.height), interpolation = cv2.INTER_NEAREST)
 			macara = mask[index, :, :] 
 
-			if train and augmenter:
-				#Reshapes for the AUGMENTER framework
-				seq_image, seq_label, seq_mask = get_augmenter(name=augmenter)
+			if train and augmenter and random.random()<0.5:
+				seq_image2, seq_image, seq_label, seq_mask = get_augmenter(name=augmenter, c_val=self.ignore_label)
 
+				#apply some contrast  to de rgb image
 				img=img.reshape(sum(((1,),img.shape),()))
-				img = seq_image.augment_images(img)  
-				label=label.reshape(sum(((1,),label.shape),()))
-				label = seq_label.augment_images(label)
-				macara=macara.reshape(sum(((1,),macara.shape),()))
-				macara = seq_mask.augment_images(macara)
-				macara=macara.reshape(macara.shape[1:])
-				label=label.reshape(label.shape[1:])
+				img = seq_image2.augment_images(img)  
 				img=img.reshape(img.shape[1:])
+
+				if random.random()<0.5:
+					#Apply shifts and rotations to the mask, labels and image
+					
+					# Reshapes for the AUGMENTER framework
+					# the loops are due to the external library failures
+					
+					cuenta_ignore=sum(sum(sum(img==self.ignore_label)))
+					cuenta_ignore2=cuenta_ignore
+					while abs(cuenta_ignore2-cuenta_ignore)<5:
+						img=img.reshape(sum(((1,),img.shape),()))
+						img = seq_image.augment_images(img)  
+						img=img.reshape(img.shape[1:])
+						cuenta_ignore2=sum(sum(sum(img==self.ignore_label)))
+
+
+					cuenta_ignore=sum(sum(label==self.ignore_label))
+					cuenta_ignore2=cuenta_ignore
+					while cuenta_ignore2==cuenta_ignore:
+						label=label.reshape(sum(((1,),label.shape),()))
+						label = seq_label.augment_images(label)
+						label=label.reshape(label.shape[1:])
+						cuenta_ignore2=sum(sum(label==self.ignore_label))
+
+
+					cuenta_ignore=sum(sum(macara==self.ignore_label))
+					cuenta_ignore2=cuenta_ignore
+					while cuenta_ignore2==cuenta_ignore:
+						macara=macara.reshape(sum(((1,),macara.shape),()))
+						macara = seq_mask.augment_images(macara)
+						macara=macara.reshape(macara.shape[1:])
+						cuenta_ignore2=sum(sum(macara==self.ignore_label))
+
+
 
 			if self.ignore_label:
 				#ignore_label to value 0-n_classes and add it to mask
@@ -212,11 +240,11 @@ if __name__ == "__main__":
 	print(y)
 	'''
 	loader = Loader('./camvid', problemType = 'segmentation', ignore_label=11, n_classes=11)
-	x, y, mask =loader.get_batch(size=10)
+	x, y, mask =loader.get_batch(size=50, augmenter='segmentation')
 	print(x.shape)
 	print(np.argmax(y,3).shape)
 	print(mask.shape)
-	for i in xrange(10):
+	for i in xrange(50):
 		print(np.unique(np.argmax(y,3)*12))
 		print(np.unique(mask[i,:,:]*255))
 		print((np.argmax(y,3)*12).dtype)

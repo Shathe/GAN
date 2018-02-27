@@ -5,9 +5,10 @@ import random
 
 
 
-def get_augmenter(name, perc_real=0.5):
+def get_augmenter(name, perc_real=0.5, c_val=0):
     if name:
         alot = lambda aug: iaa.Sometimes(0.75, aug)
+        alw = lambda aug: iaa.Sometimes(1, aug)
         sometimes = lambda aug: iaa.Sometimes(0.50, aug)
         few = lambda aug: iaa.Sometimes(0.10, aug)
 
@@ -39,20 +40,35 @@ def get_augmenter(name, perc_real=0.5):
             #create one per image. give iamge, label and mask to the pipeling
 
             value_flip = round(random.random())
+            if value_flip>0.5:
+                value_flip=1
+            else:
+                value_flip=0
             value_flip2 = round(random.random())
-            value_add = random.uniform(-30, 30)
-            value_Multiply = random.uniform(0.8, 1.2)
-            value_GaussianBlur = random.uniform(0.0,0.10)
+            if value_flip2>0.5:
+                value_flip=1
+            else:
+                value_flip=0
+
+            value_add = random.uniform(-15, 15)
+            value_Multiply = random.uniform(0.9, 1.1)
+            value_GaussianBlur = random.uniform(0.0,0.05)
             value_CoarseDropout = random.uniform(0.05, 0.15)
             value_CoarseDropout2 = random.uniform(0.05, 0.15)
             value_CoarseDropout3 = random.uniform(0.15, 0.35)
             value_CoarseDropout4 = random.uniform(0.15, 0.35)
-            ContrastNormalization = random.uniform(0.75, 1.35)
-            value_x = random.uniform(0.75, 1.25)
-            value_y = random.uniform(0.75, 1.25)
-            value_x2 = random.uniform(-0.2, 0.2)
-            value_y2 = random.uniform(-0.2, 0.2)
+            ContrastNormalization = random.uniform(0.85, 1.15)
+            value_x = random.uniform(0.7, 1.3)
+            value_y = random.uniform(0.7, 1.3)
+            value_x2 = random.uniform(-0.3, 0.3)
+            value_y2 = random.uniform(-0.3, 0.3)
             val_rotate = random.uniform(-45,45)
+            if abs(val_rotate)<2:
+                val_rotate=5
+            if abs(1-value_x)<0.05:
+                value_x=1.1
+            if abs(1-value_y)<0.05:
+                value_y=1.1
             '''
             sometimes(iaa.Add((value_add, value_add))),
             sometimes(iaa.Multiply((value_Multiply, value_Multiply), per_channel=False)),
@@ -62,6 +78,7 @@ def get_augmenter(name, perc_real=0.5):
             sometimes(iaa.ContrastNormalization((ContrastNormalization, ContrastNormalization))),
             '''
     #uniform(-30, 30)
+            
             seq_image = iaa.Sequential([
                 iaa.Fliplr(value_flip),  # horizontally flip 50% of the images
                 iaa.Flipud(value_flip2),  # vertically flip 50% of the images
@@ -72,13 +89,23 @@ def get_augmenter(name, perc_real=0.5):
                     # translate by -20 to +20 percent (per axis)
                     rotate=(val_rotate),  # rotate by -45 to +45 degrees
                     order=1,  #bilinear interpolation (fast)
-                    cval=255,
-                    mode="constant" # `edge`, `wrap`, `reflect` or `symmetric`
-                    # cval=(0, 255),  # if mode is constant, use a cval between 0 and 255
+                    cval=c_val,
+                    mode="constant",
+
+                    # `edge`, `wrap`, `reflect` or `symmetric`
+                    # cval=c_val,  # if mode is constant, use a cval between 0 and 255
                     # mode=ia.ALL  # use any of scikit-image's warping modes (see 2nd image from the top for examples)
 
                 ))])
-
+            
+            seq_image2 = iaa.Sequential([
+                sometimes(iaa.Add((value_add, value_add))),
+                sometimes(iaa.Multiply((value_Multiply, value_Multiply), per_channel=False)),
+                sometimes(iaa.GaussianBlur(sigma=(value_GaussianBlur, value_GaussianBlur))),
+                few(iaa.CoarseDropout(p=value_CoarseDropout, size_percent=(value_CoarseDropout3, value_CoarseDropout3), per_channel=True)),
+                few(iaa.CoarseDropout(p=value_CoarseDropout2, size_percent=(value_CoarseDropout4, value_CoarseDropout4), per_channel=False)),
+                sometimes(iaa.ContrastNormalization((ContrastNormalization, ContrastNormalization)))])
+            
                 
 
             seq_label = iaa.Sequential([
@@ -91,14 +118,14 @@ def get_augmenter(name, perc_real=0.5):
                     # translate by -20 to +20 percent (per axis)
                     rotate=(val_rotate),  # rotate by -45 to +45 degrees
                     order=0,  #bilinear interpolation (fast)
-                    cval=0,
+                    cval=c_val,
                     mode="constant" # `edge`, `wrap`, `reflect` or `symmetric`
                     # cval=(0, 255),  # if mode is constant, use a cval between 0 and 255
                     # mode=ia.ALL  # use any of scikit-image's warping modes (see 2nd image from the top for examples)
                 ))])
 
 
-
+            
             seq_mask = iaa.Sequential([
                 iaa.Fliplr(value_flip),  # horizontally flip 50% of the images
                 iaa.Flipud(value_flip2),  # vertically flip 50% of the images
@@ -109,12 +136,14 @@ def get_augmenter(name, perc_real=0.5):
                     # translate by -20 to +20 percent (per axis)
                     rotate=(val_rotate),  # rotate by -45 to +45 degrees
                     order=0,  #bilinear interpolation (fast)
-                    cval=0,
+                    cval=c_val,
                     mode="constant" # `edge`, `wrap`, `reflect` or `symmetric`
-                    # cval=(0, 255),  # if mode is constant, use a cval between 0 and 255
+                    # cval=c_val,  # if mode is constant, use a cval between 0 and 255
                     # mode=ia.ALL  # use any of scikit-image's warping modes (see 2nd image from the top for examples)
                 ))])
-            return seq_image, seq_label, seq_mask
+             
+
+            return seq_image2, seq_image, seq_label, seq_mask
           
         elif 'caltech' in name:
             seq_multi = iaa.Sequential([

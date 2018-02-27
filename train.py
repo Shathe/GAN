@@ -23,13 +23,13 @@ parser.add_argument("--dataset", help="Dataset to train", default='./camvid')  #
 parser.add_argument("--dimensions", help="Temporal dimensions to get from each sample", default=3)
 parser.add_argument("--tensorboard", help="Monitor with Tensorboard", default=0)
 parser.add_argument("--augmentation", help="Image augmentation", default=1)
-parser.add_argument("--init_lr", help="Initial learning rate", default=1e-3)
+parser.add_argument("--init_lr", help="Initial learning rate", default=7e-3)
 parser.add_argument("--min_lr", help="Initial learning rate", default=5e-8)
-parser.add_argument("--init_batch_size", help="batch_size", default=4)
-parser.add_argument("--max_batch_size", help="batch_size", default=12)
-parser.add_argument("--n_classes", help="number of classes to classify", default=21)
-parser.add_argument("--ignore_label", help="class to ignore", default=255)
-parser.add_argument("--epochs", help="Number of epochs to train", default=20)
+parser.add_argument("--init_batch_size", help="batch_size", default=6)
+parser.add_argument("--max_batch_size", help="batch_size", default=6)
+parser.add_argument("--n_classes", help="number of classes to classify", default=11)
+parser.add_argument("--ignore_label", help="class to ignore", default=11)
+parser.add_argument("--epochs", help="Number of epochs to train", default=150)
 parser.add_argument("--width", help="width", default=224)
 parser.add_argument("--height", help="height", default=224)
 parser.add_argument("--save_model", help="dropout_rate", default=0)
@@ -59,10 +59,7 @@ change_batch_size = (max_batch_size - init_batch_size) / float(total_epochs - 1)
 loader = Loader(dataFolderPath=args.dataset, n_classes=n_classes, problemType = 'segmentation', width=width, height=height, ignore_label = ignore_label)
 testing_samples = len(loader.image_test_list)
 training_samples = len(loader.image_train_list)
-x, y, mask =loader.get_batch(size=3)
-print(x.shape)
-print(y.shape)
-print(mask.shape)
+
 
 # For Batch_norm or dropout operations: training or testing
 training_flag = tf.placeholder(tf.bool)
@@ -79,7 +76,7 @@ batch_labels = tf.reshape(label, [-1, height, width, n_classes])
 # Para poder modificarlo
 learning_rate = tf.placeholder(tf.float32, name='learning_rate')
 
-output = Network.simple(input_x=batch_images, n_classes=n_classes, width=width, height=height, channels=channels)
+output = Network.complex(input_x=batch_images, n_classes=n_classes, width=width, height=height, channels=channels)
 shape_output = output.get_shape()
 label_shape = label.get_shape()
 
@@ -161,7 +158,7 @@ print("Total parameters of the net: " + str(total_parameters)+ " == " + str(tota
 
 
 
-times_show_per_epoch = 5
+times_show_per_epoch = 3
 saver = tf.train.Saver(tf.global_variables())
 
 with tf.Session() as sess:
@@ -191,9 +188,12 @@ with tf.Session() as sess:
 		show_each_steps = int(total_batch / times_show_per_epoch)
 
 		val_loss_acum = 0
+		accuracy_rates_acum = 0
+		times_test=0
+
 		# steps in every epoch
 		for step in range(total_batch):
-			batch_x, batch_y, batch_mask = loader.get_batch(size=batch_size, train=True)
+			batch_x, batch_y, batch_mask = loader.get_batch(size=batch_size, train=True)#, augmenter='segmentation'
 
 
 			train_feed_dict = {
@@ -209,7 +209,6 @@ with tf.Session() as sess:
 				global_step += show_each_steps
 				train_summary, train_accuracy, = sess.run([merged, accuracy], feed_dict=train_feed_dict)
 				#train_summary, train_accuracy, acc_total, acc_update, prec_total, prec_update, miou_total, miou_update = sess.run([merged, accuracy, acc[0], acc[1], prec[0], prec[1], miou[0], miou[1]], feed_dict=train_feed_dict)
-				print("TRAIN")
 
 				print("Step:", step, "Loss:", loss, "Training accuracy:", train_accuracy)
 				'''
@@ -230,20 +229,21 @@ with tf.Session() as sess:
 					learning_rate: epoch_learning_rate,
 					training_flag: False
 				}
-				print("TEST")
 
 				test_summary, accuracy_rates, val_loss= sess.run([merged, accuracy, cost], feed_dict=test_feed_dict)
 				#test_summary, accuracy_rates, val_loss, acc_total, acc_update, prec_total, prec_update, miou_total, miou_update = sess.run([merged, accuracy, cost, acc[0], acc[1], prec[0], prec[1], miou[0], miou[1]], feed_dict=test_feed_dict)
-				print("Step:", step, "Loss:", val_loss, "Testing accuracy:", accuracy_rates)
+				# print("Step:", step, "Loss:", val_loss, "Testing accuracy:", accuracy_rates)
 				'''
 				print("Step:", step, "acc_total:", acc_total, "acc_update:", acc_update)
 				print("Step:", step, "prec_update:", prec_update, "prec_total:", prec_total)
 				print("Step:", step, "miou_update:", miou_update, "miou_total:", miou_total)
 				'''
 				writer_test.add_summary(test_summary, global_step=global_step/show_each_steps)
+				times_test=times_test+1
 				val_loss_acum = val_loss_acum + val_loss
+				accuracy_rates_acum = accuracy_rates + accuracy_rates_acum
 
-		print('Epoch:', '%04d' % (epoch + 1), '/ Accuracy =', accuracy_rates, '/ val_loss =', val_loss_acum)
+		print('Epoch:', '%04d' % (epoch + 1), '/ Accuracy =', accuracy_rates_acum/times_test, '/ val_loss =', val_loss_acum/times_test)
 		if save_model:
 			print(save_model)
 			saver.save(sess=sess, save_path='./model/dense.ckpt')
