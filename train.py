@@ -23,7 +23,7 @@ parser.add_argument("--dataset", help="Dataset to train", default='./camvid')  #
 parser.add_argument("--dimensions", help="Temporal dimensions to get from each sample", default=3)
 parser.add_argument("--tensorboard", help="Monitor with Tensorboard", default=0)
 parser.add_argument("--augmentation", help="Image augmentation", default=1)
-parser.add_argument("--init_lr", help="Initial learning rate", default=7e-3)
+parser.add_argument("--init_lr", help="Initial learning rate", default=1e-3)
 parser.add_argument("--min_lr", help="Initial learning rate", default=5e-8)
 parser.add_argument("--init_batch_size", help="batch_size", default=6)
 parser.add_argument("--max_batch_size", help="batch_size", default=6)
