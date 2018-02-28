@@ -29,10 +29,10 @@ parser.add_argument("--init_batch_size", help="batch_size", default=2)
 parser.add_argument("--max_batch_size", help="batch_size", default=2)
 parser.add_argument("--n_classes", help="number of classes to classify", default=11)
 parser.add_argument("--ignore_label", help="class to ignore", default=11)
-parser.add_argument("--epochs", help="Number of epochs to train", default=250)
+parser.add_argument("--epochs", help="Number of epochs to train", default=100)
 parser.add_argument("--width", help="width", default=224)
 parser.add_argument("--height", help="height", default=224)
-parser.add_argument("--save_model", help="dropout_rate", default=0)
+parser.add_argument("--save_model", help="save_model", default=1)
 args = parser.parse_args()
 
 
@@ -101,11 +101,12 @@ cost = -tf.reduce_mean(cost2, axis=0)
 
 
 
+update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+with tf.control_dependencies(update_ops):
 
-
-# Uso el optimizador de Adam y se quiere minimizar la funcion de coste
-optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
-train = optimizer.minimize(cost) # VARIABLES TO PTIMIZE 
+	# Uso el optimizador de Adam y se quiere minimizar la funcion de coste
+	optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
+	train = optimizer.minimize(cost) # VARIABLES TO PTIMIZE 
 
 
 # Accuracy es:
@@ -124,6 +125,7 @@ miou = tf.metrics.mean_iou(labels, predictions, n_classes)
 # Scalar summaries always
 tf.summary.scalar('loss', cost)
 tf.summary.scalar('accuracy', accuracy)
+tf.summary.scalar('learning_rate', learning_rate)
 '''
 tf.summary.scalar('acc_total', acc[0])
 tf.summary.scalar('acc_update', acc[1])
@@ -163,7 +165,7 @@ print("Total parameters of the net: " + str(total_parameters)+ " == " + str(tota
 
 
 
-times_show_per_epoch = 3
+times_show_per_epoch = 15
 saver = tf.train.Saver(tf.global_variables())
 '''
 # initialize the network
@@ -172,8 +174,8 @@ init = tf.global_variables_initializer()
 with tf.Session() as sess:
 	ckpt = tf.train.get_checkpoint_state('./model')  # './model/best'
 	ckpt_best = tf.train.get_checkpoint_state('./model/best')  # './model/best'
-	if ckpt and tf.train.checkpoint_exists(ckpt.model_checkpoint_path):
-		saver.restore(sess, ckpt.model_checkpoint_path)
+	if ckpt_best and tf.train.checkpoint_exists(ckpt_best.model_checkpoint_path):
+		saver.restore(sess, ckpt_best.model_checkpoint_path)
 	else:
 		sess.run(tf.global_variables_initializer())
 
@@ -197,6 +199,8 @@ with tf.Session() as sess:
 
 		val_loss_acum = 0
 		accuracy_rates_acum = 0
+		val_loss_acum2 = 0
+		accuracy_rates_acum2 = 0
 		times_test=0
 
 		# steps in every epoch
@@ -208,7 +212,7 @@ with tf.Session() as sess:
 				x: batch_x,
 				label: batch_y,
 				learning_rate: epoch_learning_rate,
-				training_flag: True
+				training_flag: 1
 			}
 
 			_, loss = sess.run([train, cost], feed_dict=train_feed_dict)
@@ -229,16 +233,19 @@ with tf.Session() as sess:
 
 				batch_x_test, batch_y_test, batch_mask = loader.get_batch(size=batch_size, train=False)
 
-
-
 				test_feed_dict = {
 					x: batch_x_test,
 					label: batch_y_test,
 					learning_rate: epoch_learning_rate,
-					training_flag: False
+					training_flag: 0
 				}
 
 				test_summary, accuracy_rates, val_loss= sess.run([merged, accuracy, cost], feed_dict=test_feed_dict)
+
+				writer_test.add_summary(test_summary, global_step=global_step/show_each_steps)
+
+				
+
 				#test_summary, accuracy_rates, val_loss, acc_total, acc_update, prec_total, prec_update, miou_total, miou_update = sess.run([merged, accuracy, cost, acc[0], acc[1], prec[0], prec[1], miou[0], miou[1]], feed_dict=test_feed_dict)
 				# print("Step:", step, "Loss:", val_loss, "Testing accuracy:", accuracy_rates)
 				'''
@@ -246,12 +253,11 @@ with tf.Session() as sess:
 				print("Step:", step, "prec_update:", prec_update, "prec_total:", prec_total)
 				print("Step:", step, "miou_update:", miou_update, "miou_total:", miou_total)
 				'''
-				writer_test.add_summary(test_summary, global_step=global_step/show_each_steps)
 				times_test=times_test+1
 				val_loss_acum = val_loss_acum + val_loss
 				accuracy_rates_acum = accuracy_rates + accuracy_rates_acum
 
-		print('Epoch:', '%04d' % (epoch + 1), '/ Accuracy =', accuracy_rates_acum/times_test, '/ val_loss =', val_loss_acum/times_test)
+		print('Epoch:', '%04d' % (epoch + 1), '/ Accuracy=', accuracy_rates_acum/times_test, '/ val_loss =', val_loss_acum/times_test)
 		if save_model:
 			print(save_model)
 			saver.save(sess=sess, save_path='./model/dense.ckpt')
@@ -271,7 +277,7 @@ with tf.Session() as sess:
 
 
 
-	'''
+	
 
 	# TEST
 	count = 0
@@ -310,4 +316,4 @@ with tf.Session() as sess:
 
 
 	print(np.unique(predictions))
-	'''
+	
