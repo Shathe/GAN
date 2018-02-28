@@ -220,7 +220,7 @@ def conv2d_simple(x, filters, num_row, num_col, padding='same', strides=(1, 1), 
          kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d(), kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=0.1), name='conv1'+ str(layer_index)) # there is also dilation_rate!
 
         if not last:
-            # x = tf.layers.batch_normalization(x, axis=3, training=training, name='BN'+ str(layer_index)) # scale=False,
+            x = tf.layers.batch_normalization(x, axis=3, training=training, name='BN'+ str(layer_index)) # scale=False,
             x = tf.nn.relu(x, name='relu'+ str(layer_index))
         return x
 
@@ -229,7 +229,7 @@ def deconv_simple(x, filters, num_row, num_col, padding='same', strides=(1, 1), 
 
         x = tf.layers.conv2d_transpose(x, filters, (num_row, num_col), strides=strides, padding=padding, name='deconv'+ str(layer_index), bias_initializer=tf.contrib.layers.xavier_initializer(),
          kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d(), kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=0.1)) # there is also dilation_rate!
-        # x = tf.layers.batch_normalization(x, axis=3, training=training, name='BN'+ str(layer_index)) # scale=False,
+        x = tf.layers.batch_normalization(x, axis=3, training=training, name='BN'+ str(layer_index)) # scale=False,
         x = tf.nn.relu(x, name='relu'+ str(layer_index))
         return x
 
@@ -357,10 +357,11 @@ def simple(input_x=None, n_classes=20, weights=None, width=224, height=224, chan
     x = tf.concat([x, x2_, x3_, x4_, x5_], axis=3)
     print(x.get_shape())
 
-
+    '''
     x = conv2d_simple(x, int(x.get_shape()[3]/5), 3, 3, padding='same', strides=(1, 1), training=training, last=True, layer_index=layer_index)
     layer_index = increment(layer_index)
     print(x.get_shape())
+    '''
     x = conv2d_simple(x, n_classes, 3, 3, padding='same', strides=(1, 1), training=training, last=True, layer_index=layer_index)
     print(x.get_shape())
     return x
