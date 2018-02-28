@@ -23,13 +23,13 @@ parser.add_argument("--dataset", help="Dataset to train", default='./camvid')  #
 parser.add_argument("--dimensions", help="Temporal dimensions to get from each sample", default=3)
 parser.add_argument("--tensorboard", help="Monitor with Tensorboard", default=0)
 parser.add_argument("--augmentation", help="Image augmentation", default=1)
-parser.add_argument("--init_lr", help="Initial learning rate", default=1e-3)
+parser.add_argument("--init_lr", help="Initial learning rate", default=5e-3)
 parser.add_argument("--min_lr", help="Initial learning rate", default=5e-8)
-parser.add_argument("--init_batch_size", help="batch_size", default=6)
-parser.add_argument("--max_batch_size", help="batch_size", default=6)
+parser.add_argument("--init_batch_size", help="batch_size", default=2)
+parser.add_argument("--max_batch_size", help="batch_size", default=2)
 parser.add_argument("--n_classes", help="number of classes to classify", default=11)
 parser.add_argument("--ignore_label", help="class to ignore", default=11)
-parser.add_argument("--epochs", help="Number of epochs to train", default=150)
+parser.add_argument("--epochs", help="Number of epochs to train", default=250)
 parser.add_argument("--width", help="width", default=224)
 parser.add_argument("--height", help="height", default=224)
 parser.add_argument("--save_model", help="dropout_rate", default=0)
@@ -76,7 +76,7 @@ batch_labels = tf.reshape(label, [-1, height, width, n_classes])
 # Para poder modificarlo
 learning_rate = tf.placeholder(tf.float32, name='learning_rate')
 
-output = Network.complex(input_x=batch_images, n_classes=n_classes, width=width, height=height, channels=channels)
+output = Network.simple(input_x=batch_images, n_classes=n_classes, width=width, height=height, channels=channels, training=training_flag)
 shape_output = output.get_shape()
 label_shape = label.get_shape()
 
@@ -91,7 +91,12 @@ uniques, idx = tf.unique(predictions)
 cost = tf.reduce_mean(tf.losses.softmax_cross_entropy(onehot_labels=labels, logits=predictions))
 #cost = -tf.reduce_mean(labels*tf.log(tf.nn.softmax(predctions)), axis=1)
 
-
+'''
+cost1 = tf.reduce_mean(labels*tf.log(tf.nn.softmax(predictions)), axis=1)
+weights = np.array([5,5,5,5,5,5,5,5,5,5,5])
+cost2 = tf.reduce_mean(cost1*weights, axis=1) 
+cost = -tf.reduce_mean(cost2, axis=0)
+'''
 
 
 
@@ -160,7 +165,10 @@ print("Total parameters of the net: " + str(total_parameters)+ " == " + str(tota
 
 times_show_per_epoch = 3
 saver = tf.train.Saver(tf.global_variables())
-
+'''
+# initialize the network
+init = tf.global_variables_initializer()
+'''
 with tf.Session() as sess:
 	ckpt = tf.train.get_checkpoint_state('./model')  # './model/best'
 	ckpt_best = tf.train.get_checkpoint_state('./model/best')  # './model/best'
