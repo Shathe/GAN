@@ -24,12 +24,12 @@ parser.add_argument("--dimensions", help="Temporal dimensions to get from each s
 parser.add_argument("--tensorboard", help="Monitor with Tensorboard", default=0)
 parser.add_argument("--augmentation", help="Image augmentation", default=1)
 parser.add_argument("--init_lr", help="Initial learning rate", default=5e-3)
-parser.add_argument("--min_lr", help="Initial learning rate", default=5e-8)
+parser.add_argument("--min_lr", help="Initial learning rate", default=3e-7)
 parser.add_argument("--init_batch_size", help="batch_size", default=2)
 parser.add_argument("--max_batch_size", help="batch_size", default=2)
 parser.add_argument("--n_classes", help="number of classes to classify", default=11)
 parser.add_argument("--ignore_label", help="class to ignore", default=11)
-parser.add_argument("--epochs", help="Number of epochs to train", default=100)
+parser.add_argument("--epochs", help="Number of epochs to train", default=250)
 parser.add_argument("--width", help="width", default=224)
 parser.add_argument("--height", help="height", default=224)
 parser.add_argument("--save_model", help="save_model", default=1)
@@ -66,37 +66,39 @@ training_flag = tf.placeholder(tf.bool)
 
 # Placeholder para las imagenes.
 x = tf.placeholder(tf.float32, shape=[None, height, width, channels], name='input')
-batch_images = tf.reshape(x, [-1, height, width, channels])
-batch_images = tf.reverse(batch_images, axis=[-1]) #opencv rgb -bgr
+batch_images = tf.reverse(x, axis=[-1]) #opencv rgb -bgr
 
 label = tf.placeholder(tf.float32, shape=[None, height, width, n_classes], name='output')
-batch_labels = tf.reshape(label, [-1, height, width, n_classes])
+mask_label = tf.placeholder(tf.float32, shape=[None, height, width, n_classes], name='mask')
 # Placeholders para las clases (vector de salida que seran valores de 0-1 por cada clase)
 
 # Para poder modificarlo
 learning_rate = tf.placeholder(tf.float32, name='learning_rate')
 
-output = Network.simple(input_x=batch_images, n_classes=n_classes, width=width, height=height, channels=channels, training=training_flag)
+output = Network.simple(input_x=x, n_classes=n_classes, width=width, height=height, channels=channels, training=training_flag)
 shape_output = output.get_shape()
 label_shape = label.get_shape()
 
 
 predictions = tf.reshape(output, [-1, shape_output[1]* shape_output[2] , shape_output[3]]) # tf.reshape(output, [-1])
 labels = tf.reshape(label, [-1, label_shape[1]* label_shape[2] , label_shape[3]]) # tf.reshape(output, [-1])
+mask_labels = tf.reshape(mask_label, [-1, label_shape[1]* label_shape[2] , label_shape[3]]) # tf.reshape(output, [-1])
 
 
 uniques, idx = tf.unique(predictions)
 
 # funcion de coste: cross entropy (se pued modificar. mediado por todos los ejemplos)
-cost = tf.reduce_mean(tf.losses.softmax_cross_entropy(onehot_labels=labels, logits=predictions))
-#cost = -tf.reduce_mean(labels*tf.log(tf.nn.softmax(predctions)), axis=1)
+#cost = tf.reduce_mean(tf.losses.softmax_cross_entropy(onehot_labels=labels, logits=predictions))
 
-'''
-cost1 = tf.reduce_mean(labels*tf.log(tf.nn.softmax(predictions)), axis=1)
-weights = np.array([5,5,5,5,5,5,5,5,5,5,5])
-cost2 = tf.reduce_mean(cost1*weights, axis=1) 
-cost = -tf.reduce_mean(cost2, axis=0)
-'''
+cost_masked = tf.reduce_mean(labels*mask_labels*tf.log(tf.nn.softmax(predictions)), axis=1)
+
+weights = np.array([1,1,1,1,1,1,1,1,1,1,1])
+cost_with_weights = tf.reduce_mean(cost_masked*weights*n_classes, axis=1) 
+# cost_with_weights_masked = cost_with_weights*mask_labels
+mean_masking = tf.reduce_mean(mask_labels)
+
+cost = -tf.reduce_mean(cost_with_weights, axis=0) / mean_masking
+
 
 
 
@@ -110,25 +112,39 @@ with tf.control_dependencies(update_ops):
 
 
 # Accuracy es:
-correct_prediction = tf.equal(tf.argmax(predictions, 2), tf.argmax(labels, 2))
-accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-acc = tf.metrics.accuracy(labels, predictions)
-prec = tf.metrics.precision(labels,predictions)
-miou = tf.metrics.mean_iou(labels, predictions, n_classes)
 
+'''
+predictions_one_hot = tf.one_hot(tf.argmax(predictions, 2) , n_classes)
+correct_prediction_per_class = tf.cast(tf.equal(predictions_one_hot, labels), tf.float32) 
+accuracy_per_class = tf.multiply(labels, correct_prediction_per_class )
+accuracy_per_class_sum = tf.reduce_sum(accuracy_per_class, axis=0)
+accuracy_per_class_sum = tf.reduce_sum(accuracy_per_class_sum, axis=0)
+labels_sum = tf.reduce_sum(labels, axis=0)
+labels_sum = tf.reduce_sum(labels_sum, axis=0)
+mean_accuracy = tf.reduce_mean(accuracy_per_class_sum/labels_sum)
+'''
+
+
+correct_prediction = tf.equal(tf.argmax(predictions, 2), tf.argmax(labels, 2))
+
+
+correct_prediction_masked=tf.cast(correct_prediction, tf.float32)*tf.reduce_mean(mask_labels, axis=2)
+sum_correc_masked=tf.reduce_sum(correct_prediction_masked)
+sum_mask=tf.reduce_sum(tf.reduce_mean(mask_labels, axis=2))
+
+accuracy = sum_correc_masked/sum_mask
+#accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
+#hacer media por clase acc
+ 
 
 # hacer solo primero para summary
-
-
-
-
 # Scalar summaries always
 tf.summary.scalar('loss', cost)
 tf.summary.scalar('accuracy', accuracy)
 tf.summary.scalar('learning_rate', learning_rate)
+
 '''
-tf.summary.scalar('acc_total', acc[0])
-tf.summary.scalar('acc_update', acc[1])
 tf.summary.scalar('prec_total', prec[0])
 tf.summary.scalar('prec_update', prec[1])
 tf.summary.scalar('miou_total', miou[0])
@@ -164,6 +180,7 @@ for variable in tf.trainable_variables():
 print("Total parameters of the net: " + str(total_parameters)+ " == " + str(total_parameters/1000000.0) + "M")
 
 
+ 
 
 times_show_per_epoch = 15
 saver = tf.train.Saver(tf.global_variables())
@@ -171,14 +188,17 @@ saver = tf.train.Saver(tf.global_variables())
 # initialize the network
 init = tf.global_variables_initializer()
 '''
+
 with tf.Session() as sess:
-	ckpt = tf.train.get_checkpoint_state('./model')  # './model/best'
-	ckpt_best = tf.train.get_checkpoint_state('./model/best')  # './model/best'
+	sess.run(tf.global_variables_initializer())
+	sess.run(tf.local_variables_initializer())
+	ckpt = tf.train.get_checkpoint_state('./model_simple')  # './model/best'
+	ckpt_best = tf.train.get_checkpoint_state('./model_simple/best')  # './model/best'
 	if ckpt_best and tf.train.checkpoint_exists(ckpt_best.model_checkpoint_path):
 		saver.restore(sess, ckpt_best.model_checkpoint_path)
-	else:
-		sess.run(tf.global_variables_initializer())
 
+
+	
 
 	merged = tf.summary.merge_all()
 	writer_train = tf.summary.FileWriter('./logs/train', sess.graph)
@@ -199,19 +219,18 @@ with tf.Session() as sess:
 
 		val_loss_acum = 0
 		accuracy_rates_acum = 0
-		val_loss_acum2 = 0
-		accuracy_rates_acum2 = 0
 		times_test=0
 
 		# steps in every epoch
 		for step in range(total_batch):
-			batch_x, batch_y, batch_mask = loader.get_batch(size=batch_size, train=True)#, augmenter='segmentation'
+			batch_x, batch_y, batch_mask = loader.get_batch(size=batch_size, train=True, augmenter='segmentation')#, augmenter='segmentation'
 
 
 			train_feed_dict = {
 				x: batch_x,
 				label: batch_y,
 				learning_rate: epoch_learning_rate,
+				mask_label: batch_mask,
 				training_flag: 1
 			}
 
@@ -219,15 +238,12 @@ with tf.Session() as sess:
 
 			if step % show_each_steps == 0:
 				global_step += show_each_steps
-				train_summary, train_accuracy, = sess.run([merged, accuracy], feed_dict=train_feed_dict)
+				# train_summary, train_accuracy, = sess.run([merged, accuracy], feed_dict=train_feed_dict)
+				train_summary, train_accuracy= sess.run([merged, accuracy], feed_dict=train_feed_dict)
 				#train_summary, train_accuracy, acc_total, acc_update, prec_total, prec_update, miou_total, miou_update = sess.run([merged, accuracy, acc[0], acc[1], prec[0], prec[1], miou[0], miou[1]], feed_dict=train_feed_dict)
 
 				print("Step:", step, "Loss:", loss, "Training accuracy:", train_accuracy)
-				'''
-				print("Step:", step, "acc_total:", acc_total, "acc_update:", acc_update)
-				print("Step:", step, "prec_update:", prec_update, "prec_total:", prec_total)
-				print("Step:", step, "miou_update:", miou_update, "miou_total:", miou_total)
-				'''
+
 				writer_train.add_summary(train_summary, global_step=global_step/show_each_steps)
 
 
@@ -237,10 +253,11 @@ with tf.Session() as sess:
 					x: batch_x_test,
 					label: batch_y_test,
 					learning_rate: epoch_learning_rate,
+					mask_label: batch_mask,
 					training_flag: 0
 				}
 
-				test_summary, accuracy_rates, val_loss= sess.run([merged, accuracy, cost], feed_dict=test_feed_dict)
+				test_summary, accuracy_rates,  val_loss= sess.run([merged, accuracy, cost], feed_dict=test_feed_dict)
 
 				writer_test.add_summary(test_summary, global_step=global_step/show_each_steps)
 
@@ -248,16 +265,12 @@ with tf.Session() as sess:
 
 				#test_summary, accuracy_rates, val_loss, acc_total, acc_update, prec_total, prec_update, miou_total, miou_update = sess.run([merged, accuracy, cost, acc[0], acc[1], prec[0], prec[1], miou[0], miou[1]], feed_dict=test_feed_dict)
 				# print("Step:", step, "Loss:", val_loss, "Testing accuracy:", accuracy_rates)
-				'''
-				print("Step:", step, "acc_total:", acc_total, "acc_update:", acc_update)
-				print("Step:", step, "prec_update:", prec_update, "prec_total:", prec_total)
-				print("Step:", step, "miou_update:", miou_update, "miou_total:", miou_total)
-				'''
+
 				times_test=times_test+1
 				val_loss_acum = val_loss_acum + val_loss
 				accuracy_rates_acum = accuracy_rates + accuracy_rates_acum
 
-		print('Epoch:', '%04d' % (epoch + 1), '/ Accuracy=', accuracy_rates_acum/times_test, '/ val_loss =', val_loss_acum/times_test)
+		print('Epoch:', '%04d' % (epoch + 1), '/ Accuracy=', accuracy_rates_acum/times_test,  '/ val_loss =', val_loss_acum/times_test)
 		if save_model:
 			print(save_model)
 			saver.save(sess=sess, save_path='./model/dense.ckpt')
@@ -273,47 +286,6 @@ with tf.Session() as sess:
 		#agument batch_size per epoch and decrease the learning rate
 		epoch_learning_rate = init_learning_rate * math.pow(change_lr_epoch, epoch)
 		batch_size_decimal = batch_size_decimal + change_batch_size
-
-
-
-
 	
 
-	# TEST
-	count = 0
-	accuracy_sum = 0.00
-	for i in xrange(0, testing_samples, batch_size):
-		if i + batch_size > testing_samples:
-			batch_size = testing_samples - i
-		x_test, y_test, mask_test = loader.get_batch(size=batch_size, train=False, index=i)
-		count = count + 1
-		test_feed_dict = {
-			x: x_test,
-			label: y_test,
-			training_flag: False
-		}
-		accuracy_rates = sess.run([accuracy], feed_dict=test_feed_dict)
-		print(accuracy_rates)
-		accuracy_sum = accuracy_sum + accuracy_rates[0]*batch_size
 
-	print("Accuracy total: " + str(accuracy_sum / testing_samples))
-
-	x_test, y_test, mask_test = loader.get_batch(size=1, train=False, index=0)
-
-	import time
-	first = time.time()
-	predictions = sess.run(output_image, feed_dict={x: batch_x_test, training_flag : False})
-	second = time.time()
-	print(str(second - first) + " seconds to load")
-
-	print(np.unique(predictions))
-
-
-	first = time.time()
-	output_image.eval(feed_dict={x: batch_x_test, training_flag : False})
-	second = time.time()
-	print(str(second - first) + " seconds to load")
-
-
-	print(np.unique(predictions))
-	

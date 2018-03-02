@@ -77,11 +77,11 @@ class Loader:
 
 
 	# Returns a random batch of segmentation images: X, Y, mask
-	def _get_batch_segmentation(self, size=32, train=True, augmenter=None, index=None):
+	def _get_batch_segmentation(self, size=32, train=True, augmenter=None, index=None, validation=False):
 
 		x = np.zeros([size, self.height, self.width, self.dim], dtype=np.float32)
 		y = np.zeros([size, self.height, self.width], dtype=np.uint8)
-		mask = np.ones([size, self.height, self.width], dtype=np.uint8)
+		mask_expanded = np.ones([size, self.height, self.width, self.n_classes], dtype=np.uint8)
 
 		image_list = self.image_test_list
 		label_list = self.label_test_list
@@ -108,7 +108,7 @@ class Loader:
 				img = cv2.resize(img, (self.width, self.height), interpolation = cv2.INTER_AREA)
 			if label.shape[1] != self.width and label.shape[0] != self.height:
 				label = cv2.resize(label, (self.width, self.height), interpolation = cv2.INTER_NEAREST)
-			macara = mask[index, :, :] 
+			macara = mask_expanded[index, :, :, 0] 
 
 			if train and augmenter and random.random()<0.5:
 				seq_image2, seq_image, seq_label, seq_mask = get_augmenter(name=augmenter, c_val=self.ignore_label)
@@ -152,7 +152,7 @@ class Loader:
 
 
 
-			if self.ignore_label:
+			if self.ignore_label and not validation:
 				#ignore_label to value 0-n_classes and add it to mask
 				mask_ignore = label == self.ignore_label
 				macara[mask_ignore] = 0
@@ -161,18 +161,19 @@ class Loader:
 
 			x[index, :, :, :] = img
 			y[index, :, :] = label
-			mask[index, :, :] = macara
-
+			for i in xrange(mask_expanded.shape[3]):
+				mask_expanded[index, :, :, i] = macara
 
 		# the labeling to categorical (if 5 classes and value is 2:  2 -> [0,0,1,0,0])
 		a, b, c =y.shape
 		y = y.reshape((a*b*c))
-		y = to_categorical(y, num_classes=self.n_classes)
+		if self.ignore_label and validation:
+			y = to_categorical(y, num_classes=self.n_classes+1)
+		else:
+			y = to_categorical(y, num_classes=self.n_classes)
 		y = y.reshape((a,b,c,self.n_classes)).astype(np.uint8)
 		x = x.astype(np.float32) / 255.0 - 0.5
-		# VOC mean IMG_MEAN = np.array((104.00698793,116.66876762,122.67891434), dtype=np.float32)
-
-		return x, y, mask
+		return x, y, mask_expanded
 
 
 	# Returns a random batch
@@ -221,13 +222,13 @@ class Loader:
 
 
 	# Returns a random batch
-	def get_batch(self, size=32, train=True, index=None, augmenter=None):
+	def get_batch(self, size=32, train=True, index=None, augmenter=None, validation=False):
 		if self.problemType == 'classification':
 			return self._get_batch_rgb(size=size, train=train, augmenter=augmenter)
 		elif self.problemType == 'GAN':
 			return self._get_batch_GAN(size=size, train=train, augmenter=augmenter)
 		elif self.problemType == 'segmentation':
-			return self._get_batch_segmentation(size=size, train=train, augmenter=augmenter, index=index)
+			return self._get_batch_segmentation(size=size, train=train, augmenter=augmenter, index=index, validation=False)
 		elif self.problemType == 'DVS':
 			return self._get_batch_DVS(size=size, train=train)
 
@@ -239,8 +240,8 @@ if __name__ == "__main__":
 	x, y =loader.get_batch(size=2)
 	print(y)
 	'''
-	loader = Loader('./camvid', problemType = 'segmentation', ignore_label=11, n_classes=11)
-	x, y, mask =loader.get_batch(size=50, augmenter='segmentation')
+	loader = Loader('./camvid', problemType = 'segmentation', ignore_label=12, n_classes=12)
+	x, y, mask =loader.get_batch(size=50)#, augmenter='segmentation'
 	print(x.shape)
 	print(np.argmax(y,3).shape)
 	print(mask.shape)
@@ -249,6 +250,15 @@ if __name__ == "__main__":
 		print(np.unique(mask[i,:,:]*255))
 		print((np.argmax(y,3)*12).dtype)
 		print(mask.dtype)
+		cv2.imshow('x',x[i,:,:,:])
+
+		for label in xrange(12):
+
+			imagen_label=np.argmax(y,3)[i,:,:]
+			imagen_label[imagen_label==label]=255
+			imagen_label[imagen_label!=255]=0
+			cv2.imshow(str(label),(imagen_label).astype(np.uint8))
+			cv2.waitKey(0)
 		cv2.imshow('x',x[i,:,:,:])
 		cv2.imshow('y',(np.argmax(y,3)[i,:,:]*12).astype(np.uint8))
 		cv2.imshow('mask',mask[i,:,:]*255)

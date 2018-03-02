@@ -1,4 +1,7 @@
 ./dataset*
+model*
+model_complex/
+model_simple/
 VOC
 VOC*/*
 ./*.pyc
