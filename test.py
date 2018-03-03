@@ -76,7 +76,7 @@ batch_labels = tf.reshape(label, [-1, height, width, n_classes])
 # Para poder modificarlo
 learning_rate = tf.placeholder(tf.float32, name='learning_rate')
 
-output = Network.simple(input_x=batch_images, n_classes=n_classes, width=width, height=height, channels=channels, training=training_flag)
+output = Network.complex(input_x=batch_images, n_classes=n_classes, width=width, height=height, channels=channels, training=training_flag)
 shape_output = output.get_shape()
 label_shape = label.get_shape()
 
@@ -134,12 +134,13 @@ init = tf.global_variables_initializer()
 with tf.Session() as sess:
 	sess.run(tf.global_variables_initializer())
 	sess.run(tf.local_variables_initializer())
-	ckpt = tf.train.get_checkpoint_state('./model_simple')  # './model/best'
-	ckpt_best = tf.train.get_checkpoint_state('./model_simple/best')  # './model/best'
+	ckpt = tf.train.get_checkpoint_state('./model_complex')  # './model/best'
+	ckpt_best = tf.train.get_checkpoint_state('./model_complex/best')  # './model/best'
 	if ckpt_best and tf.train.checkpoint_exists(ckpt_best.model_checkpoint_path):
 		saver.restore(sess, ckpt_best.model_checkpoint_path)
 	# TEST
 	count = 0
+	suma_acc = 0
 	for i in xrange(0, testing_samples, max_batch_size):
 		if i + max_batch_size > testing_samples:
 			max_batch_size = testing_samples - i
@@ -151,9 +152,10 @@ with tf.Session() as sess:
 			training_flag: False
 		}
 		accuracy_rates, acc_update, acc_total, miou_update, miou_total,mean_acc_total, mean_acc_update = sess.run([accuracy, acc_op, acc, miou_op, miou, mean_acc, mean_acc_op], feed_dict=test_feed_dict)
+		suma_acc = suma_acc + accuracy_rates*max_batch_size
 
 
-
+	print("Accuracy: " + str(suma_acc/testing_samples))
 	print("Accuracy: " + str(acc_update))
 	print("miou: " + str(miou_total))
 	print("mean accuracy: " + str(mean_acc_total))
@@ -180,7 +182,7 @@ Accuracy: 0.69807445
 miou: 0.35044846
 mean accuracy: 0.43492416
 
-Mejores resultados simple
+Mejores resultados complex
 Accuracy: 0.80801904
 miou: 0.40060046
 mean accuracy: 0.4919342

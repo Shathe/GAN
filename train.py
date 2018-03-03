@@ -29,7 +29,7 @@ parser.add_argument("--init_batch_size", help="batch_size", default=2)
 parser.add_argument("--max_batch_size", help="batch_size", default=2)
 parser.add_argument("--n_classes", help="number of classes to classify", default=11)
 parser.add_argument("--ignore_label", help="class to ignore", default=11)
-parser.add_argument("--epochs", help="Number of epochs to train", default=250)
+parser.add_argument("--epochs", help="Number of epochs to train", default=300)
 parser.add_argument("--width", help="width", default=224)
 parser.add_argument("--height", help="height", default=224)
 parser.add_argument("--save_model", help="save_model", default=1)
@@ -126,7 +126,8 @@ mean_accuracy = tf.reduce_mean(accuracy_per_class_sum/labels_sum)
 
 
 correct_prediction = tf.equal(tf.argmax(predictions, 2), tf.argmax(labels, 2))
-
+print(correct_prediction.get_shape())
+print(mask_labels.get_shape())
 
 correct_prediction_masked=tf.cast(correct_prediction, tf.float32)*tf.reduce_mean(mask_labels, axis=2)
 sum_correc_masked=tf.reduce_sum(correct_prediction_masked)
@@ -213,7 +214,7 @@ with tf.Session() as sess:
 		time_first=time.time()
 		batch_size = int(batch_size_decimal)
 		print ("epoch " + str(epoch+ 1) + ", lr: " + str(epoch_learning_rate) + ", batch_size: " + str(batch_size) )
-		# Simple learning rate decay
+		# simple learning rate decay
 		total_batch = int(training_samples / batch_size)
 		show_each_steps = int(total_batch / times_show_per_epoch)
 
@@ -272,11 +273,11 @@ with tf.Session() as sess:
 
 		print('Epoch:', '%04d' % (epoch + 1), '/ Accuracy=', accuracy_rates_acum/times_test,  '/ val_loss =', val_loss_acum/times_test)
 		if save_model:
-			print(save_model)
-			saver.save(sess=sess, save_path='./model/dense.ckpt')
+			saver.save(sess=sess, save_path='./model_simple/dense.ckpt')
 		if save_model and best_val_loss > val_loss_acum:
+			print(save_model)
 			best_val_loss = val_loss_acum
-			saver.save(sess=sess, save_path='./model/best/dense.ckpt')
+			saver.save(sess=sess, save_path='./model_simple/best/dense.ckpt')
 
 		time_second=time.time()
 		epochs_left = total_epochs - epoch - 1

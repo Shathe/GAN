@@ -126,30 +126,33 @@ class Loader:
 					
 					cuenta_ignore=sum(sum(sum(img==self.ignore_label)))
 					cuenta_ignore2=cuenta_ignore
-					while abs(cuenta_ignore2-cuenta_ignore)<5:
+					i=0
+					while abs(cuenta_ignore2-cuenta_ignore)<5 and i<15:
 						img=img.reshape(sum(((1,),img.shape),()))
 						img = seq_image.augment_images(img)  
 						img=img.reshape(img.shape[1:])
 						cuenta_ignore2=sum(sum(sum(img==self.ignore_label)))
-
+						i = i+ 1
 
 					cuenta_ignore=sum(sum(label==self.ignore_label))
 					cuenta_ignore2=cuenta_ignore
-					while cuenta_ignore2==cuenta_ignore:
+					i=0
+					while cuenta_ignore2==cuenta_ignore and i<15:
 						label=label.reshape(sum(((1,),label.shape),()))
 						label = seq_label.augment_images(label)
 						label=label.reshape(label.shape[1:])
 						cuenta_ignore2=sum(sum(label==self.ignore_label))
-
+						i = i+ 1
 
 					cuenta_ignore=sum(sum(macara==self.ignore_label))
 					cuenta_ignore2=cuenta_ignore
-					while cuenta_ignore2==cuenta_ignore:
+					i=0
+					while cuenta_ignore2==cuenta_ignore and i<15:
 						macara=macara.reshape(sum(((1,),macara.shape),()))
 						macara = seq_mask.augment_images(macara)
 						macara=macara.reshape(macara.shape[1:])
 						cuenta_ignore2=sum(sum(macara==self.ignore_label))
-
+						i = i+ 1
 
 
 			if self.ignore_label and not validation:
