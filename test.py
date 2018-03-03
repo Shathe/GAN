@@ -76,7 +76,7 @@ batch_labels = tf.reshape(label, [-1, height, width, n_classes])
 # Para poder modificarlo
 learning_rate = tf.placeholder(tf.float32, name='learning_rate')
 
-output = Network.complex(input_x=batch_images, n_classes=n_classes, width=width, height=height, channels=channels, training=training_flag)
+output = Network.simple(input_x=batch_images, n_classes=n_classes, width=width, height=height, channels=channels, training=training_flag)
 shape_output = output.get_shape()
 label_shape = label.get_shape()
 
@@ -134,8 +134,8 @@ init = tf.global_variables_initializer()
 with tf.Session() as sess:
 	sess.run(tf.global_variables_initializer())
 	sess.run(tf.local_variables_initializer())
-	ckpt = tf.train.get_checkpoint_state('./model_complex')  # './model/best'
-	ckpt_best = tf.train.get_checkpoint_state('./model_complex/best')  # './model/best'
+	ckpt = tf.train.get_checkpoint_state('./model_simple')  # './model/best'
+	ckpt_best = tf.train.get_checkpoint_state('./model_simple/best')  # './model/best'
 	if ckpt_best and tf.train.checkpoint_exists(ckpt_best.model_checkpoint_path):
 		saver.restore(sess, ckpt_best.model_checkpoint_path)
 	# TEST

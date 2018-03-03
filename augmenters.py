@@ -5,7 +5,7 @@ import random
 
 
 
-def get_augmenter(name, perc_real=0.5, c_val=0):
+def get_augmenter(name, c_val=0, vertical_flip=True):
     if name:
         alot = lambda aug: iaa.Sometimes(0.75, aug)
         alw = lambda aug: iaa.Sometimes(1, aug)
@@ -50,19 +50,19 @@ def get_augmenter(name, perc_real=0.5, c_val=0):
             else:
                 value_flip=0
 
-            value_add = random.uniform(-15, 15)
+            value_add = random.uniform(-20, 20)
             value_Multiply = random.uniform(0.9, 1.1)
-            value_GaussianBlur = random.uniform(0.0,0.05)
+            value_GaussianBlur = random.uniform(0.0,0.35)
             value_CoarseDropout = random.uniform(0.05, 0.15)
             value_CoarseDropout2 = random.uniform(0.05, 0.15)
             value_CoarseDropout3 = random.uniform(0.15, 0.35)
             value_CoarseDropout4 = random.uniform(0.15, 0.35)
-            ContrastNormalization = random.uniform(0.85, 1.15)
-            value_x = random.uniform(0.7, 1.3)
-            value_y = random.uniform(0.7, 1.3)
-            value_x2 = random.uniform(-0.3, 0.3)
-            value_y2 = random.uniform(-0.3, 0.3)
-            val_rotate = random.uniform(-45,45)
+            ContrastNormalization = random.uniform(0.65, 1.35)
+            value_x = random.uniform(0.85, 1.3)
+            value_y = random.uniform(0.85, 1.3)
+            value_x2 = random.uniform(-0.15, 0.15)
+            value_y2 = random.uniform(-0.15, 0.15)
+            val_rotate = random.uniform(-25,25)
             if abs(val_rotate)<2:
                 val_rotate=5
             if abs(1-value_x)<0.05:
@@ -81,7 +81,7 @@ def get_augmenter(name, perc_real=0.5, c_val=0):
             
             seq_image = iaa.Sequential([
                 iaa.Fliplr(value_flip),  # horizontally flip 50% of the images
-                iaa.Flipud(value_flip2),  # vertically flip 50% of the images
+                #iaa.Flipud(value_flip2),  # vertically flip 50% of the images
                 alot(iaa.Affine(
                     scale={"x": (value_x), "y": (value_y)},
                     # scale images to 80-120% of their size, individually per axis
@@ -102,8 +102,6 @@ def get_augmenter(name, perc_real=0.5, c_val=0):
                 sometimes(iaa.Add((value_add, value_add))),
                 sometimes(iaa.Multiply((value_Multiply, value_Multiply), per_channel=False)),
                 sometimes(iaa.GaussianBlur(sigma=(value_GaussianBlur, value_GaussianBlur))),
-                few(iaa.CoarseDropout(p=value_CoarseDropout, size_percent=(value_CoarseDropout3, value_CoarseDropout3), per_channel=True)),
-                few(iaa.CoarseDropout(p=value_CoarseDropout2, size_percent=(value_CoarseDropout4, value_CoarseDropout4), per_channel=False)),
                 sometimes(iaa.ContrastNormalization((ContrastNormalization, ContrastNormalization)))])
             
                 

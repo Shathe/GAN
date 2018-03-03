@@ -110,7 +110,7 @@ class Loader:
 				label = cv2.resize(label, (self.width, self.height), interpolation = cv2.INTER_NEAREST)
 			macara = mask_expanded[index, :, :, 0] 
 
-			if train and augmenter and random.random()<0.5:
+			if train and augmenter and random.random()<0.80:
 				seq_image2, seq_image, seq_label, seq_mask = get_augmenter(name=augmenter, c_val=self.ignore_label)
 
 				#apply some contrast  to de rgb image
@@ -118,7 +118,7 @@ class Loader:
 				img = seq_image2.augment_images(img)  
 				img=img.reshape(img.shape[1:])
 
-				if random.random()<0.5:
+				if random.random()<0.70:
 					#Apply shifts and rotations to the mask, labels and image
 					
 					# Reshapes for the AUGMENTER framework
