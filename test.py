@@ -55,7 +55,6 @@ change_lr_epoch = math.pow(min_learning_rate/init_learning_rate, 1.0/total_epoch
 change_batch_size = (max_batch_size - init_batch_size) / float(total_epochs - 1)
 
 
-
 loader = Loader(dataFolderPath=args.dataset, n_classes=n_classes, problemType = 'segmentation', width=width, height=height, ignore_label = ignore_label)
 testing_samples = len(loader.image_test_list)
 training_samples = len(loader.image_train_list)
@@ -66,49 +65,45 @@ training_flag = tf.placeholder(tf.bool)
 
 # Placeholder para las imagenes.
 x = tf.placeholder(tf.float32, shape=[None, height, width, channels], name='input')
-batch_images = tf.reshape(x, [-1, height, width, channels])
-batch_images = tf.reverse(batch_images, axis=[-1]) #opencv rgb -bgr
+batch_images = tf.reverse(x, axis=[-1]) #opencv rgb -bgr
 
 label = tf.placeholder(tf.float32, shape=[None, height, width, n_classes], name='output')
-batch_labels = tf.reshape(label, [-1, height, width, n_classes])
+mask_label = tf.placeholder(tf.float32, shape=[None, height, width, n_classes], name='mask')
 # Placeholders para las clases (vector de salida que seran valores de 0-1 por cada clase)
 
 # Para poder modificarlo
 learning_rate = tf.placeholder(tf.float32, name='learning_rate')
 
-output = Network.simple(input_x=batch_images, n_classes=n_classes, width=width, height=height, channels=channels, training=training_flag)
+_rate = tf.placeholder(tf.float32, name='learning_rate')
+
+output = Network.complex(input_x=x, n_classes=n_classes, width=width, height=height, channels=channels, training=training_flag)
 shape_output = output.get_shape()
 label_shape = label.get_shape()
 
 
 predictions = tf.reshape(output, [-1, shape_output[1]* shape_output[2] , shape_output[3]]) # tf.reshape(output, [-1])
 labels = tf.reshape(label, [-1, label_shape[1]* label_shape[2] , label_shape[3]]) # tf.reshape(output, [-1])
+mask_labels = tf.reshape(mask_label, [-1, label_shape[1]* label_shape[2] , label_shape[3]]) # tf.reshape(output, [-1])
 
 
 uniques, idx = tf.unique(predictions)
 
 # funcion de coste: cross entropy (se pued modificar. mediado por todos los ejemplos)
-cost = tf.reduce_mean(tf.losses.softmax_cross_entropy(onehot_labels=labels, logits=predictions))
-#cost = -tf.reduce_mean(labels*tf.log(tf.nn.softmax(predctions)), axis=1)
+#cost = tf.reduce_mean(tf.losses.softmax_cross_entropy(onehot_labels=labels, logits=predictions))
 
-'''
-cost1 = tf.reduce_mean(labels*tf.log(tf.nn.softmax(predictions)), axis=1)
-weights = np.array([5,5,5,5,5,5,5,5,5,5,5])
-cost2 = tf.reduce_mean(cost1*weights, axis=1) 
-cost = -tf.reduce_mean(cost2, axis=0)
-'''
+cost_masked = tf.reduce_mean(labels*mask_labels*tf.log(tf.nn.softmax(predictions)), axis=1)
+
+weights = np.array([1,1,1,1,1,1,1,1,1,1,1])
+cost_with_weights = tf.reduce_mean(cost_masked*weights*n_classes, axis=1) 
+# cost_with_weights_masked = cost_with_weights*mask_labels
+mean_masking = tf.reduce_mean(mask_labels)
+
+cost = -tf.reduce_mean(cost_with_weights, axis=0) / mean_masking
+
 output_image = tf.expand_dims(tf.cast(tf.argmax(output, 3), tf.float32), -1)
 
 
-
-update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-with tf.control_dependencies(update_ops):
-
-	# Uso el optimizador de Adam y se quiere minimizar la funcion de coste
-	optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
-	train = optimizer.minimize(cost) # VARIABLES TO PTIMIZE 
-
-
+ 
 # Accuracy es:
 
 correct_prediction = tf.equal(tf.argmax(labels, 2), tf.argmax(predictions, 2))
@@ -134,8 +129,8 @@ init = tf.global_variables_initializer()
 with tf.Session() as sess:
 	sess.run(tf.global_variables_initializer())
 	sess.run(tf.local_variables_initializer())
-	ckpt = tf.train.get_checkpoint_state('./model_simple')  # './model/best'
-	ckpt_best = tf.train.get_checkpoint_state('./model_simple/best')  # './model/best'
+	ckpt = tf.train.get_checkpoint_state('./model_complex')  # './model/best'
+	ckpt_best = tf.train.get_checkpoint_state('./model_complex/best')  # './model/best'
 	if ckpt_best and tf.train.checkpoint_exists(ckpt_best.model_checkpoint_path):
 		saver.restore(sess, ckpt_best.model_checkpoint_path)
 	# TEST
@@ -177,12 +172,12 @@ with tf.Session() as sess:
 
 	
 '''
-Mejores resultados simple
+Mejores resultados siimple
 Accuracy: 0.69807445
 miou: 0.35044846
 mean accuracy: 0.43492416
 
-Mejores resultados complex
+Mejores resultados coomplex
 Accuracy: 0.80801904
 miou: 0.40060046
 mean accuracy: 0.4919342

@@ -22,6 +22,10 @@ class Loader:
 		self.width = width
 		self.dim = dim 
 		self.ignore_label = ignore_label
+		self.freq = np.zeros(n_classes)
+
+		if ignore_label < n_classes:
+			raise Exception( 'please, change the labeling in order to put the ignore label value to the last value > nunm_classes')
 
 		# Load filepaths
 		files = []
@@ -110,7 +114,7 @@ class Loader:
 				label = cv2.resize(label, (self.width, self.height), interpolation = cv2.INTER_NEAREST)
 			macara = mask_expanded[index, :, :, 0] 
 
-			if train and augmenter and random.random()<0.80:
+			if train and augmenter and random.random()<0.90:
 				seq_image2, seq_image, seq_label, seq_mask = get_augmenter(name=augmenter, c_val=self.ignore_label)
 
 				#apply some contrast  to de rgb image
@@ -118,7 +122,7 @@ class Loader:
 				img = seq_image2.augment_images(img)  
 				img=img.reshape(img.shape[1:])
 
-				if random.random()<0.70:
+				if random.random()<0.90:
 					#Apply shifts and rotations to the mask, labels and image
 					
 					# Reshapes for the AUGMENTER framework
@@ -235,7 +239,16 @@ class Loader:
 		elif self.problemType == 'DVS':
 			return self._get_batch_DVS(size=size, train=train)
 
+	def median_frequency_exp(self):
 
+		for image_label_train in self.label_train_list:
+			image = cv2.imread(image_label_train,0)
+
+			for label in xrange(self.n_classes):
+				self.freq[label] = self.freq[label] + sum(sum(image == label))
+		return np.median(self.freq)/self.freq
+
+		
 if __name__ == "__main__":
 	'''
 	loader = Loader('./dataset_rgb')

@@ -11,44 +11,45 @@ def complex(input_x=None, n_classes=20, weights=None, width=224, height=224, cha
     # a layer instance is callable on a tensor, and returns a tensor
     x = conv2d_bn(input_x, 48, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
     layer_index = increment(layer_index)
-    x4 = concatenation_convs2(x, 32, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=6)
+    x4 = concatenation_convs2(x, 36, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=6)
     layer_index = increment(layer_index)
     x = tf.layers.average_pooling2d(x4, pool_size=(2, 2), strides=(2, 2), name='pool'+ str(layer_index))
     layer_index = increment(layer_index)
-    x3 = concatenation_convs2(x, 30, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=16)
+    x3 = concatenation_convs2(x, 32, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=12)
     layer_index = increment(layer_index)
     x = tf.layers.average_pooling2d(x3, pool_size=(2, 2), strides=(2, 2), name='pool'+ str(layer_index))
     layer_index = increment(layer_index)
-    x2 = concatenation_convs2(x, 26, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=24)
+    x2 = concatenation_convs2(x, 24, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=20)
     layer_index = increment(layer_index)
     x = tf.layers.average_pooling2d(x2, pool_size=(2, 2), strides=(2, 2), name='pool'+ str(layer_index))
     layer_index = increment(layer_index)
-    x1 = concatenation_convs2(x, 32, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=12)
+    x1 = concatenation_convs2(x, 32, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=8)
     layer_index = increment(layer_index)
     x6_ = tf.layers.average_pooling2d(x1, pool_size=(2, 2), strides=(2, 2), name='pool'+ str(layer_index))
     layer_index = increment(layer_index)
 
-    x = deconv2d_bn(x6_, 192, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
+    x = deconv2d_bn(x6_, 96, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
     layer_index = increment(layer_index)
     x = tf.concat([x, x1], axis=3)
-    x5_ = concatenation_convs2(x, 48, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=4)
+    x5_ = concatenation_convs2(x, 36, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=6)
     layer_index = increment(layer_index)
-    x = deconv2d_bn(x5_, 96, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
+
+    x = deconv2d_bn(x5_, 128, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
     layer_index = increment(layer_index)
     x = tf.concat([x, x2], axis=3)
-    x4_ = concatenation_convs2(x, 32, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=12)
+    x4_ = concatenation_convs2(x, 30, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=12)
     layer_index = increment(layer_index)
-    x = deconv2d_bn(x4_, 192, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
+    x = deconv2d_bn(x4_, 164, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
     layer_index = increment(layer_index)
     x = tf.concat([x, x3], axis=3)
-    x3_ = concatenation_convs2(x, 30, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=18)
+    x3_ = concatenation_convs2(x, 24, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=20)
     layer_index = increment(layer_index)
-    x = deconv2d_bn(x3_, 270, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
+    x = deconv2d_bn(x3_, 196, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
     layer_index = increment(layer_index)
     x = tf.concat([x, x4], axis=3)
-    x2_ = concatenation_convs2(x, 64, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=6)
+    x2_ = concatenation_convs2(x, 32, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=8)
     layer_index = increment(layer_index)
-    x = deconv2d_bn(x2_, 164, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
+    x = deconv2d_bn(x2_, 224, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
     layer_index = increment(layer_index)
 
 
@@ -68,7 +69,7 @@ def complex(input_x=None, n_classes=20, weights=None, width=224, height=224, cha
     print(x.get_shape())
 
     layer_index = increment(layer_index)
-    x = conv2d_bn(x, n_classes, 3, 3, padding='same', strides=(1, 1), training=training, last=True, layer_index=layer_index)
+    x = conv2d_bn_last(x, n_classes, 3, 3, padding='same', strides=(1, 1), training=training,layer_index=layer_index)
 
     print(x.get_shape())
 
@@ -81,17 +82,15 @@ def complex(input_x=None, n_classes=20, weights=None, width=224, height=224, cha
 
 def conv2d_simple(x, filters, num_row, num_col, padding='same', strides=(1, 1), dilation_rate=(1, 1), training=True, last=False, layer_index=0, batch_norm=False, regularizers=None, bias=None):
     with tf.variable_scope('conv2d_bn_'+str(layer_index)):
-        activation_fn=None
-        if last:
-            activation_fn=tf.nn.softmax
 
-        #x = tf.layers.conv2d(x, filters, (num_row, num_col), strides=strides, padding=padding, dilation_rate=dilation_rate,activation=activation_fn,   bias_initializer=None,
+
+        #x = tf.layers.conv2d(x, filters, (num_row, num_col), strides=strides, padding=padding, dilation_rate=dilation_rate,activation=None,   bias_initializer=None,
         # kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d(), kernel_regularizer=None, name='conv1'+ str(layer_index)) # there is also dilation_rate!
         filers_a = filters - int(filters/8)
         filers_b = int(filters/8)
-        a = tf.layers.conv2d(x, filers_a, (num_row, num_col), strides=strides, padding=padding, dilation_rate=dilation_rate,activation=activation_fn,   bias_initializer=None,
+        a = tf.layers.conv2d(x, filers_a, (num_row, num_col), strides=strides, padding=padding, dilation_rate=dilation_rate,activation=None,   bias_initializer=None,
          kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d(), kernel_regularizer=None, name='conv1'+ str(layer_index)) # there is also dilation_rate!
-        b = tf.layers.conv2d(x, filers_b, (num_row, num_col), strides=strides, padding=padding, dilation_rate=(5,5),activation=activation_fn,   bias_initializer=None,
+        b = tf.layers.conv2d(x, filers_b, (num_row, num_col), strides=strides, padding=padding, dilation_rate=(5,5),activation=None,   bias_initializer=None,
          kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d(), kernel_regularizer=None, name='conv2'+ str(layer_index)) # there is also dilation_rate!
         x = tf.concat([a,b], axis=3)
         
@@ -102,34 +101,42 @@ def conv2d_simple(x, filters, num_row, num_col, padding='same', strides=(1, 1), 
 
 
 
-def conv2d_bn(x, filters, num_row, num_col, padding='same', strides=(1, 1), dilation_rate=(1, 1), training=True, last=False, layer_index=0):
+def conv2d_bn(x, filters, num_row, num_col, padding='same', strides=(1, 1), dilation_rate=(1, 1), training=True,  layer_index=0):
 
     with tf.variable_scope('conv2d_bn_'+str(layer_index)):
-        activation_fn=None
-        if last:
-            activation_fn=tf.nn.softmax
 
         filers_a = filters - int(filters/6) - int(filters/8)
         filers_c = int(filters/8)
         filers_b = int(filters/6)
 
-        x1 = tf.layers.conv2d(x, filers_a, (num_row, num_col), strides=strides, padding=padding, dilation_rate=dilation_rate,activation=activation_fn,   bias_initializer=None,
+        x1 = tf.layers.conv2d(x, filers_a, (num_row, num_col), strides=strides, padding=padding, dilation_rate=dilation_rate,activation=None,   bias_initializer=None,
          kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d(), kernel_regularizer=None, name='conv1'+ str(layer_index)) # there is also dilation_rate!
 
-        x2 = tf.layers.conv2d(x, filers_c, (5,5), strides=strides, padding=padding, dilation_rate=dilation_rate,activation=activation_fn,   bias_initializer=None,
+        x2 = tf.layers.conv2d(x, filers_c, (5,5), strides=strides, padding=padding, dilation_rate=dilation_rate,activation=None,   bias_initializer=None,
          kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d(), kernel_regularizer=None, name='conv2'+ str(layer_index)) # there is also dilation_rate!
 
-        x3 = tf.layers.conv2d(x, filers_b, (num_row, num_col), padding=padding, dilation_rate=(5,5),activation=activation_fn,   bias_initializer=None,
+        x3 = tf.layers.conv2d(x, filers_b, (num_row, num_col), padding=padding, dilation_rate=(5,5),activation=None,   bias_initializer=None,
          kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d(), kernel_regularizer=None, name='conv3'+ str(layer_index)) # there is also dilation_rate!
-        x3 = tf.layers.conv2d(x3, filers_b, (num_row, num_col),strides=strides,  padding=padding, dilation_rate=dilation_rate,activation=activation_fn,   bias_initializer=None,
+        x3 = tf.layers.conv2d(x3, filers_b, (num_row, num_col),strides=strides,  padding=padding, dilation_rate=dilation_rate,activation=None,   bias_initializer=None,
          kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d(), kernel_regularizer=None, name='conv4'+ str(layer_index)) # there is also dilation_rate!
         x = tf.concat([x1, x2, x3], axis=3)
 
-        if not last:
-            x = tf.layers.batch_normalization(x,  training=training, name='BN'+ str(layer_index)) # scale=False,
-            x = tf.nn.leaky_relu(x, name='Lrelu'+ str(layer_index))
+        x = tf.layers.batch_normalization(x,  training=training, name='BN'+ str(layer_index)) # scale=False,
+        x = tf.nn.leaky_relu(x, name='Lrelu'+ str(layer_index))
+
         return x
 
+
+def conv2d_bn_last(x, filters, num_row, num_col, padding='same', strides=(1, 1), dilation_rate=(1, 1), training=True, layer_index=0):
+
+    with tf.variable_scope('conv2d_bn_'+str(layer_index)):
+
+
+        x1 = tf.layers.conv2d(x, filters, (num_row, num_col), strides=strides, padding=padding, dilation_rate=dilation_rate,activation=None,   bias_initializer=None,
+         kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d(), kernel_regularizer=None, name='conv1'+ str(layer_index)) # there is also dilation_rate!
+
+
+        return x1
 
 
 
@@ -144,14 +151,14 @@ def deconv2d_bn(x, filters, num_row, num_col, padding='same', strides=(1, 1), tr
 
         return x
 
-def concatenation_convs2(x, filters, num_row, num_col, padding='same', strides=(1, 1), dilation_rate=(1, 1), training=True, last=False, layer_index=0, times=6):
+def concatenation_convs2(x, filters, num_row, num_col, padding='same', strides=(1, 1), dilation_rate=(1, 1), training=True,  layer_index=0, times=6):
     with tf.variable_scope('concat_'+str(layer_index)):
 
         concatetation_of_inputs = [x]
         previous_node = x
         for time in xrange(times):
 
-            next_x = conv2d_bn(previous_node, filters, num_row, num_col, padding=padding, strides=strides, dilation_rate=dilation_rate, training=training, last=last, layer_index=layer_index+time)
+            next_x = conv2d_bn(previous_node, filters, num_row, num_col, padding=padding, strides=strides, dilation_rate=dilation_rate, training=training, layer_index=layer_index+time)
             concatetation_of_inputs.append(next_x)
 
             previous_node = next_x
@@ -161,7 +168,7 @@ def concatenation_convs2(x, filters, num_row, num_col, padding='same', strides=(
                 previous_node = tf.concat([elem, previous_node], axis=3)
         
         filters=int(filters*times*0.50)
-        next_x = conv2d_bn(previous_node, filters, num_row, num_col, padding=padding, strides=strides, dilation_rate=dilation_rate, training=training, last=last, layer_index=layer_index+time+1)
+        next_x = conv2d_bn(previous_node, filters, num_row, num_col, padding=padding, strides=strides, dilation_rate=dilation_rate, training=training, layer_index=layer_index+time+1)
 
         print(next_x.get_shape())
 

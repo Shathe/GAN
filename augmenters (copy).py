@@ -50,18 +50,18 @@ def get_augmenter(name, c_val=0, vertical_flip=True):
             else:
                 value_flip=0
 
-            value_add = random.uniform(-10, 10)
+            value_add = random.uniform(-20, 20)
             value_Multiply = random.uniform(0.9, 1.1)
-            value_GaussianBlur = random.uniform(0.0,0.15)
+            value_GaussianBlur = random.uniform(0.0,0.35)
             value_CoarseDropout = random.uniform(0.05, 0.15)
             value_CoarseDropout2 = random.uniform(0.05, 0.15)
             value_CoarseDropout3 = random.uniform(0.15, 0.35)
             value_CoarseDropout4 = random.uniform(0.15, 0.35)
             ContrastNormalization = random.uniform(0.60, 1.40)
-            value_x = random.uniform(0.8, 1.4)
-            value_y = random.uniform(0.8, 1.4)
-            value_x2 = random.uniform(-0.30, 0.30)
-            value_y2 = random.uniform(-0.30, 0.30)
+            value_x = random.uniform(0.85, 1.3)
+            value_y = random.uniform(0.85, 1.3)
+            value_x2 = random.uniform(-0.15, 0.15)
+            value_y2 = random.uniform(-0.15, 0.15)
             val_rotate = random.uniform(-25,25)
 
             '''
@@ -76,7 +76,7 @@ def get_augmenter(name, c_val=0, vertical_flip=True):
             
             seq_image = iaa.Sequential([
                 iaa.Fliplr(value_flip),  # horizontally flip 50% of the images
-                # iaa.Flipud(value_flip2),  # vertically flip 50% of the images
+                #iaa.Flipud(value_flip2),  # vertically flip 50% of the images
                 alot(iaa.Affine(
                     scale={"x": (value_x), "y": (value_y)},
                     # scale images to 80-120% of their size, individually per axis
@@ -103,7 +103,7 @@ def get_augmenter(name, c_val=0, vertical_flip=True):
 
             seq_label = iaa.Sequential([
                 iaa.Fliplr(value_flip),  # horizontally flip 50% of the images
-                # iaa.Flipud(value_flip2),  # vertically flip 50% of the images
+                #iaa.Flipud(value_flip2),  # vertically flip 50% of the images
                 alot(iaa.Affine(
                     scale={"x": (value_x), "y": (value_y)},
                     # scale images to 80-120% of their size, individually per axis
@@ -121,7 +121,7 @@ def get_augmenter(name, c_val=0, vertical_flip=True):
             
             seq_mask = iaa.Sequential([
                 iaa.Fliplr(value_flip),  # horizontally flip 50% of the images
-                # iaa.Flipud(value_flip2),  # vertically flip 50% of the images
+                #iaa.Flipud(value_flip2),  # vertically flip 50% of the images
                 alot(iaa.Affine(
                     scale={"x": (value_x), "y": (value_y)},
                     # scale images to 80-120% of their size, individually per axis

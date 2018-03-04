@@ -15,6 +15,8 @@ from augmenters import get_augmenter
 import tensorflow.contrib.slim as slim
 import Network
 import cv2
+import math
+
 random.seed(os.urandom(9))
 #tensorboard --logdir=train:./logs/train,test:./logs/test/
 
@@ -23,13 +25,13 @@ parser.add_argument("--dataset", help="Dataset to train", default='./camvid')  #
 parser.add_argument("--dimensions", help="Temporal dimensions to get from each sample", default=3)
 parser.add_argument("--tensorboard", help="Monitor with Tensorboard", default=0)
 parser.add_argument("--augmentation", help="Image augmentation", default=1)
-parser.add_argument("--init_lr", help="Initial learning rate", default=5e-3)
-parser.add_argument("--min_lr", help="Initial learning rate", default=3e-7)
-parser.add_argument("--init_batch_size", help="batch_size", default=1)
-parser.add_argument("--max_batch_size", help="batch_size", default=1)
+parser.add_argument("--init_lr", help="Initial learning rate", default=1e-3)
+parser.add_argument("--min_lr", help="Initial learning rate", default=1e-8)
+parser.add_argument("--init_batch_size", help="batch_size", default=2)
+parser.add_argument("--max_batch_size", help="batch_size", default=2)
 parser.add_argument("--n_classes", help="number of classes to classify", default=11)
 parser.add_argument("--ignore_label", help="class to ignore", default=11)
-parser.add_argument("--epochs", help="Number of epochs to train", default=300)
+parser.add_argument("--epochs", help="Number of epochs to train", default=800)
 parser.add_argument("--width", help="width", default=224)
 parser.add_argument("--height", help="height", default=224)
 parser.add_argument("--save_model", help="save_model", default=1)
@@ -75,7 +77,7 @@ mask_label = tf.placeholder(tf.float32, shape=[None, height, width, n_classes], 
 # Para poder modificarlo
 learning_rate = tf.placeholder(tf.float32, name='learning_rate')
 
-output = Network.simple(input_x=x, n_classes=n_classes, width=width, height=height, channels=channels, training=training_flag)
+output = Network.complex(input_x=x, n_classes=n_classes, width=width, height=height, channels=channels, training=training_flag)
 shape_output = output.get_shape()
 label_shape = label.get_shape()
 
@@ -90,9 +92,10 @@ uniques, idx = tf.unique(predictions)
 # funcion de coste: cross entropy (se pued modificar. mediado por todos los ejemplos)
 #cost = tf.reduce_mean(tf.losses.softmax_cross_entropy(onehot_labels=labels, logits=predictions))
 
-cost_masked = tf.reduce_mean(labels*mask_labels*tf.log(tf.nn.softmax(predictions)), axis=1)
+clipped_output =  tf.log(tf.clip_by_value(tf.nn.softmax(predictions), 1e-20, 1e+20))
+cost_masked = tf.reduce_mean(labels*mask_labels*clipped_output, axis=1)
 
-weights = np.array([1,1,1,1,1,1,1,1,1,1,1])
+weights = loader.median_frequency_exp()
 cost_with_weights = tf.reduce_mean(cost_masked*weights*n_classes, axis=1) 
 # cost_with_weights_masked = cost_with_weights*mask_labels
 mean_masking = tf.reduce_mean(mask_labels)
@@ -193,8 +196,8 @@ init = tf.global_variables_initializer()
 with tf.Session() as sess:
 	sess.run(tf.global_variables_initializer())
 	sess.run(tf.local_variables_initializer())
-	ckpt = tf.train.get_checkpoint_state('./model_simple')  # './model/best'
-	ckpt_best = tf.train.get_checkpoint_state('./model_simple/best')  # './model/best'
+	ckpt = tf.train.get_checkpoint_state('./model_complex')  # './model/best'
+	ckpt_best = tf.train.get_checkpoint_state('./model_complex/best')  # './model/best'
 	if ckpt_best and tf.train.checkpoint_exists(ckpt_best.model_checkpoint_path):
 		saver.restore(sess, ckpt_best.model_checkpoint_path)
 
@@ -214,7 +217,7 @@ with tf.Session() as sess:
 		time_first=time.time()
 		batch_size = int(batch_size_decimal)
 		print ("epoch " + str(epoch+ 1) + ", lr: " + str(epoch_learning_rate) + ", batch_size: " + str(batch_size) )
-		# simple learning rate decay
+		# complex learning rate decay
 		total_batch = int(training_samples / batch_size)
 		show_each_steps = int(total_batch / times_show_per_epoch)
 
@@ -253,31 +256,35 @@ with tf.Session() as sess:
 				test_feed_dict = {
 					x: batch_x_test,
 					label: batch_y_test,
-					learning_rate: epoch_learning_rate,
+					learning_rate: 0,
 					mask_label: batch_mask,
 					training_flag: 0
 				}
 
 				test_summary, accuracy_rates,  val_loss= sess.run([merged, accuracy, cost], feed_dict=test_feed_dict)
-
+				
 				writer_test.add_summary(test_summary, global_step=global_step/show_each_steps)
 
 				
+
 
 				#test_summary, accuracy_rates, val_loss, acc_total, acc_update, prec_total, prec_update, miou_total, miou_update = sess.run([merged, accuracy, cost, acc[0], acc[1], prec[0], prec[1], miou[0], miou[1]], feed_dict=test_feed_dict)
 				# print("Step:", step, "Loss:", val_loss, "Testing accuracy:", accuracy_rates)
 
 				times_test=times_test+1
+				if math.isnan(val_loss):
+					val_loss = np.inf
 				val_loss_acum = val_loss_acum + val_loss
 				accuracy_rates_acum = accuracy_rates + accuracy_rates_acum
 
+
 		print('Epoch:', '%04d' % (epoch + 1), '/ Accuracy=', accuracy_rates_acum/times_test,  '/ val_loss =', val_loss_acum/times_test)
 		if save_model:
-			saver.save(sess=sess, save_path='./model_simple/dense.ckpt')
+			saver.save(sess=sess, save_path='./model_complex/dense.ckpt')
 		if save_model and best_val_loss > val_loss_acum:
 			print(save_model)
 			best_val_loss = val_loss_acum
-			saver.save(sess=sess, save_path='./model_simple/best/dense.ckpt')
+			saver.save(sess=sess, save_path='./model_complex/best/dense.ckpt')
 
 		time_second=time.time()
 		epochs_left = total_epochs - epoch - 1
