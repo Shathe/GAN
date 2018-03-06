@@ -54,7 +54,6 @@ channels = int(args.dimensions)
 change_lr_epoch = math.pow(min_learning_rate/init_learning_rate, 1.0/total_epochs)
 change_batch_size = (max_batch_size - init_batch_size) / float(total_epochs - 1)
 
-
 loader = Loader(dataFolderPath=args.dataset, n_classes=n_classes, problemType = 'segmentation', width=width, height=height, ignore_label = ignore_label)
 testing_samples = len(loader.image_test_list)
 training_samples = len(loader.image_train_list)
@@ -65,74 +64,50 @@ training_flag = tf.placeholder(tf.bool)
 
 # Placeholder para las imagenes.
 x = tf.placeholder(tf.float32, shape=[None, height, width, channels], name='input')
-batch_images = tf.reverse(x, axis=[-1]) #opencv rgb -bgr
-
 label = tf.placeholder(tf.float32, shape=[None, height, width, n_classes], name='output')
 mask_label = tf.placeholder(tf.float32, shape=[None, height, width, n_classes], name='mask')
 # Placeholders para las clases (vector de salida que seran valores de 0-1 por cada clase)
 
-# Para poder modificarlo
-learning_rate = tf.placeholder(tf.float32, name='learning_rate')
-
-_rate = tf.placeholder(tf.float32, name='learning_rate')
-
+# Network
 output = Network.complex(input_x=x, n_classes=n_classes, width=width, height=height, channels=channels, training=training_flag)
 shape_output = output.get_shape()
 label_shape = label.get_shape()
 
-
 predictions = tf.reshape(output, [-1, shape_output[1]* shape_output[2] , shape_output[3]]) # tf.reshape(output, [-1])
 labels = tf.reshape(label, [-1, label_shape[1]* label_shape[2] , label_shape[3]]) # tf.reshape(output, [-1])
+output_image = tf.expand_dims(tf.cast(tf.argmax(output, 3), tf.float32), -1)
 mask_labels = tf.reshape(mask_label, [-1, label_shape[1]* label_shape[2] , label_shape[3]]) # tf.reshape(output, [-1])
 
 
-uniques, idx = tf.unique(predictions)
-
-# funcion de coste: cross entropy (se pued modificar. mediado por todos los ejemplos)
-#cost = tf.reduce_mean(tf.losses.softmax_cross_entropy(onehot_labels=labels, logits=predictions))
-
-cost_masked = tf.reduce_mean(labels*mask_labels*tf.log(tf.nn.softmax(predictions)), axis=1)
-
-weights = np.array([1,1,1,1,1,1,1,1,1,1,1])
-cost_with_weights = tf.reduce_mean(cost_masked*weights*n_classes, axis=1) 
-# cost_with_weights_masked = cost_with_weights*mask_labels
-mean_masking = tf.reduce_mean(mask_labels)
-
-cost = -tf.reduce_mean(cost_with_weights, axis=0) / mean_masking
-
-output_image = tf.expand_dims(tf.cast(tf.argmax(output, 3), tf.float32), -1)
-
-
  
-# Accuracy es:
+# Metrics
 
 correct_prediction = tf.equal(tf.argmax(labels, 2), tf.argmax(predictions, 2))
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+correct_prediction = tf.equal(tf.argmax(predictions, 2), tf.argmax(labels, 2))
+
+correct_prediction_masked=tf.cast(correct_prediction, tf.float32)*tf.reduce_mean(mask_labels, axis=2)
+sum_correc_masked=tf.reduce_sum(correct_prediction_masked)
+sum_mask=tf.reduce_sum(tf.reduce_mean(mask_labels, axis=2))
+accuracy = sum_correc_masked/sum_mask
+
+
 acc, acc_op  = tf.metrics.accuracy(tf.argmax(labels, 2),tf.argmax(predictions, 2))
 mean_acc, mean_acc_op = tf.metrics.mean_per_class_accuracy(tf.argmax(labels, 2), tf.argmax(predictions, 2), n_classes)
 miou, miou_op = tf.metrics.mean_iou(tf.argmax(labels, 2), tf.argmax(predictions, 2), n_classes)
 
-
-# hacer solo primero para summary
-
-
-# PONER MASCARA AL ACCYRACY (IGUAL OTRA OPCION DE VALIDATION EN VEZ DE TEST Y QUE DEVUELVE LA CLASE A IGNORARAR PARA LOS WIETHS DE LAS METRICAS)
  
 
-times_show_per_epoch = 15
 saver = tf.train.Saver(tf.global_variables())
-'''
-# initialize the network
-init = tf.global_variables_initializer()
-'''
 
 with tf.Session() as sess:
 	sess.run(tf.global_variables_initializer())
 	sess.run(tf.local_variables_initializer())
 	ckpt = tf.train.get_checkpoint_state('./model_complex')  # './model/best'
 	ckpt_best = tf.train.get_checkpoint_state('./model_complex/best')  # './model/best'
-	if ckpt_best and tf.train.checkpoint_exists(ckpt_best.model_checkpoint_path):
-		saver.restore(sess, ckpt_best.model_checkpoint_path)
+	if ckpt and tf.train.checkpoint_exists(ckpt.model_checkpoint_path):
+		saver.restore(sess, ckpt.model_checkpoint_path)
+
 	# TEST
 	count = 0
 	suma_acc = 0
@@ -144,13 +119,14 @@ with tf.Session() as sess:
 		test_feed_dict = {
 			x: x_test,
 			label: y_test,
-			training_flag: False
+			training_flag: False,
+			mask_label: mask_test
 		}
 		accuracy_rates, acc_update, acc_total, miou_update, miou_total,mean_acc_total, mean_acc_update = sess.run([accuracy, acc_op, acc, miou_op, miou, mean_acc, mean_acc_op], feed_dict=test_feed_dict)
 		suma_acc = suma_acc + accuracy_rates*max_batch_size
 
 
-	print("Accuracy: " + str(suma_acc/testing_samples))
+	print("Masked accuracy: " + str(suma_acc/testing_samples))
 	print("Accuracy: " + str(acc_update))
 	print("miou: " + str(miou_total))
 	print("mean accuracy: " + str(mean_acc_total))
@@ -169,21 +145,4 @@ with tf.Session() as sess:
 	second = time.time()
 	print(str(second - first) + " seconds to load")
 
-
-	
-'''
-Mejores resultados siimple
-Accuracy: 0.69807445
-miou: 0.35044846
-mean accuracy: 0.43492416
-
-Mejores resultados coomplex
-Accuracy: 0.80801904
-miou: 0.40060046
-mean accuracy: 0.4919342
-
-
-
-Tiramisu entrenada de antes acc 88.68, mean acc 48.81, miou 44.36 (con augmnetation)
-State-of-the-art  acc 91.5/93  miou 66.9/69.6
-'''
+# mejor complex sin regularizer y droput: 0.80/0.77, 0.44, 0.66

@@ -123,7 +123,8 @@ def conv2d_bn(x, filters, num_row, num_col, padding='same', strides=(1, 1), dila
 
         x = tf.layers.batch_normalization(x,  training=training, name='BN'+ str(layer_index)) # scale=False,
         x = tf.nn.leaky_relu(x, name='Lrelu'+ str(layer_index))
-
+       #  x = tf.nn.dropout(x, 0.25)
+# tf.contrib.layers.l2_regularizer( scale=0.08)
         return x
 
 

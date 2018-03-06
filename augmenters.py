@@ -50,19 +50,19 @@ def get_augmenter(name, c_val=0, vertical_flip=True):
             else:
                 value_flip=0
 
-            value_add = random.uniform(-10, 10)
-            value_Multiply = random.uniform(0.9, 1.1)
+            value_add = random.uniform(-20, 20)
+            value_Multiply = random.uniform(0.8, 1.2)
             value_GaussianBlur = random.uniform(0.0,0.15)
             value_CoarseDropout = random.uniform(0.05, 0.15)
             value_CoarseDropout2 = random.uniform(0.05, 0.15)
             value_CoarseDropout3 = random.uniform(0.15, 0.35)
             value_CoarseDropout4 = random.uniform(0.15, 0.35)
-            ContrastNormalization = random.uniform(0.60, 1.40)
-            value_x = random.uniform(0.8, 1.4)
-            value_y = random.uniform(0.8, 1.4)
-            value_x2 = random.uniform(-0.30, 0.30)
-            value_y2 = random.uniform(-0.30, 0.30)
-            val_rotate = random.uniform(-25,25)
+            ContrastNormalization = random.uniform(0.75, 1.40)
+            value_x = random.uniform(0.80, 1.45)
+            value_y = random.uniform(0.80, 1.45)
+            value_x2 = random.uniform(-0.35, 0.35)
+            value_y2 = random.uniform(-0.20, 0.20)
+            val_rotate = random.uniform(-18,18)
 
             '''
             sometimes(iaa.Add((value_add, value_add))),
