@@ -21,15 +21,15 @@ random.seed(os.urandom(9))
 #tensorboard --logdir=train:./logs/train,test:./logs/test/
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--dataset", help="Dataset to train", default='./clothes')  # 'Datasets/MNIST-Big/'
+parser.add_argument("--dataset", help="Dataset to train", default='./camvid')  # 'Datasets/MNIST-Big/'
 parser.add_argument("--dimensions", help="Temporal dimensions to get from each sample", default=3)
 parser.add_argument("--augmentation", help="Image augmentation", default=1)
-parser.add_argument("--init_lr", help="Initial learning rate", default=5e-4)
-parser.add_argument("--min_lr", help="Initial learning rate", default=1e-7)
+parser.add_argument("--init_lr", help="Initial learning rate", default=1e-3)
+parser.add_argument("--min_lr", help="Initial learning rate", default=1e-8)
 parser.add_argument("--init_batch_size", help="batch_size", default=2)
 parser.add_argument("--max_batch_size", help="batch_size", default=2)
-parser.add_argument("--n_classes", help="number of classes to classify", default=3)
-parser.add_argument("--ignore_label", help="class to ignore", default=255)
+parser.add_argument("--n_classes", help="number of classes to classify", default=2)
+parser.add_argument("--ignore_label", help="class to ignore", default=11)
 parser.add_argument("--epochs", help="Number of epochs to train", default=350)
 parser.add_argument("--width", help="width", default=224)
 parser.add_argument("--height", help="height", default=224)
@@ -56,7 +56,7 @@ change_batch_size = (max_batch_size - init_batch_size) / float(total_epochs - 1)
 
 
 
-loader = Loader(dataFolderPath=args.dataset, n_classes=n_classes, problemType = 'segmentation', width=width, height=height, ignore_label = ignore_label)
+loader = Loader(dataFolderPath=args.dataset, n_classes=n_classes, problemType = 'classification', width=width, height=height)
 testing_samples = len(loader.image_test_list)
 training_samples = len(loader.image_train_list)
 
@@ -75,30 +75,18 @@ mask_label = tf.placeholder(tf.float32, shape=[None, height, width, n_classes], 
 learning_rate = tf.placeholder(tf.float32, name='learning_rate')
 
 # Network
-output = Network.complex(input_x=x, n_classes=n_classes, width=width, height=height, channels=channels, training=training_flag)
+output = Network.encoder_classif(input_x=x, n_classes=n_classes, width=width, height=height, channels=channels, training=training_flag)
 shape_output = output.get_shape()
 label_shape = label.get_shape()
+
 
 
 predictions = tf.reshape(output, [-1, shape_output[1]* shape_output[2] , shape_output[3]]) # tf.reshape(output, [-1])
 labels = tf.reshape(label, [-1, label_shape[1]* label_shape[2] , label_shape[3]]) # tf.reshape(output, [-1])
 mask_labels = tf.reshape(mask_label, [-1, label_shape[1]* label_shape[2] , label_shape[3]]) # tf.reshape(output, [-1])
 
-# calculate the loss [cross entropy]
-#Clip output (softmax) for -inf values and calculate the log
-#clipped_output =  tf.log(tf.clip_by_value(tf.nn.softmax(predictions), 1e-20, 1e+20))
-log_softmax =  tf.nn.log_softmax(predictions)
-# Compare to the label (loss)
-softmax_loss = labels*log_softmax
-# mask the loss
-cost_masked = tf.reduce_mean(softmax_loss*mask_labels, axis=1)
-# Get hte median frequency weights of the labels
-weights = loader.median_frequency_exp()
-# Apply the tweights to the loss and multiply for the number of classes (you are applying the mean)
-cost_with_weights = tf.reduce_sum(cost_masked*weights, axis=1) 
-# For normalizing the loss accoding to the number of pixels calculated, multiply for the percentage of  non mask pixels (valuable pixels)
-mean_masking = tf.reduce_mean(mask_labels)
-cost = -tf.reduce_mean(cost_with_weights, axis=0) / mean_masking
+cost = tf.nn.softmax_cross_entropy_with_logits_v2( abels=labels, logits=predictions)
+
 
 
 
@@ -153,11 +141,6 @@ output_image = tf.expand_dims(tf.cast(tf.argmax(output, 3), tf.float32), -1)
 tf.summary.image('output', output_image, max_outputs=10)
 label_image = tf.expand_dims(tf.cast(tf.argmax(label, 3), tf.float32), -1)
 tf.summary.image('label', label_image, max_outputs=10)
-print(label_image.get_shape())
-print(mask_label.get_shape())
-mask_label_image = tf.expand_dims(tf.cast(tf.argmax(mask_label*255, 3), tf.float32), -1)
-tf.summary.image('mask_label', mask_label_image, max_outputs=10)
-print(mask_label_image.get_shape())
 
 
 # Count parameters
@@ -177,14 +160,14 @@ print("Total parameters of the net: " + str(total_parameters)+ " == " + str(tota
 times_show_per_epoch = 15
 saver = tf.train.Saver(tf.global_variables())
 
-if not os.path.exists('./model_cloth/best'):
-    os.makedirs('./model_cloth/best')
+if not os.path.exists('./model_complex/best'):
+    os.makedirs('./model_complex/best')
 
 with tf.Session() as sess:
 	sess.run(tf.global_variables_initializer())
 	sess.run(tf.local_variables_initializer())
-	ckpt = tf.train.get_checkpoint_state('./model_cloth')  # './model/best'
-	ckpt_best = tf.train.get_checkpoint_state('./model_cloth/best')  # './model/best'
+	ckpt = tf.train.get_checkpoint_state('./model_complex')  # './model/best'
+	ckpt_best = tf.train.get_checkpoint_state('./model_complex/best')  # './model/best'
 	if ckpt_best and tf.train.checkpoint_exists(ckpt_best.model_checkpoint_path):
 		saver.restore(sess, ckpt_best.model_checkpoint_path)
 
@@ -262,11 +245,11 @@ with tf.Session() as sess:
 
 		# save models
 		if save_model:
-			saver.save(sess=sess, save_path='./model_cloth/dense.ckpt')
+			saver.save(sess=sess, save_path='./model_complex/dense.ckpt')
 		if save_model and best_val_loss > val_loss_acum:
 			print(save_model)
 			best_val_loss = val_loss_acum
-			saver.save(sess=sess, save_path='./model_cloth/best/dense.ckpt')
+			saver.save(sess=sess, save_path='./model_complex/best/dense.ckpt')
 
 		# show tiem to finish training
 		time_second=time.time()

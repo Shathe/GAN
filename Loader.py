@@ -24,7 +24,8 @@ class Loader:
 		self.ignore_label = ignore_label
 		self.freq = np.zeros(n_classes)
 
-		if ignore_label < n_classes:
+		if ignore_label and ignore_label < n_classes:
+
 			raise Exception( 'please, change the labeling in order to put the ignore label value to the last value > nunm_classes')
 
 		# Load filepaths
@@ -246,7 +247,15 @@ class Loader:
 
 			for label in xrange(self.n_classes):
 				self.freq[label] = self.freq[label] + sum(sum(image == label))
-		return np.median(self.freq)/self.freq
+
+		zeros = self.freq == 0
+		if len(zeros) > 0:
+			print('There are some classes which are not contained in the training samples')
+
+		results = np.median(self.freq)/self.freq
+		results[zeros]=0 # for not inf values.
+
+		return results
 
 		
 if __name__ == "__main__":
@@ -256,7 +265,10 @@ if __name__ == "__main__":
 	x, y =loader.get_batch(size=2)
 	print(y)
 	'''
-	loader = Loader('./camvid', problemType = 'segmentation', ignore_label=12, n_classes=12)
+	#	
+
+	loader = Loader('./clothes', problemType = 'segmentation', ignore_label=255, n_classes=70)
+	print(loader.median_frequency_exp())
 	x, y, mask =loader.get_batch(size=50)#, augmenter='segmentation'
 	print(x.shape)
 	print(np.argmax(y,3).shape)
@@ -267,12 +279,16 @@ if __name__ == "__main__":
 		print((np.argmax(y,3)*12).dtype)
 		print(mask.dtype)
 		cv2.imshow('x',x[i,:,:,:])
+		imagen_label=np.argmax(y,3)[i,:,:]
+
+		cv2.imshow('label',imagen_label)
+		cv2.imshow('mask',mask[i,:,:,0]*255)
 
 		for label in xrange(12):
 
 			imagen_label=np.argmax(y,3)[i,:,:]
 			imagen_label[imagen_label==label]=255
-			imagen_label[imagen_label!=255]=0
+			imagen_label[imagen_label!=255]=0 
 			cv2.imshow(str(label),(imagen_label).astype(np.uint8))
 			cv2.waitKey(0)
 		cv2.imshow('x',x[i,:,:,:])
