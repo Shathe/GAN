@@ -75,11 +75,55 @@ mask_label = tf.placeholder(tf.float32, shape=[None, height, width, n_classes], 
 learning_rate = tf.placeholder(tf.float32, name='learning_rate')
 
 # Network
-output = Network.encoder_decoder_v1(input_x=x, n_classes=n_classes, width=width, height=height, channels=channels, training=training_flag)
-shape_output = output.get_shape()
+outputs = Network.encoder_decoder_v4(input_x=x, n_classes=n_classes, width=width, height=height, channels=channels, training=training_flag)
+
+shape_output = outputs[0].get_shape()
 label_shape = label.get_shape()
+print(outputs[0].get_shape())
+'''
+
+el accuracy soloc on el ultimo output pero loss con todos pero dando pesos 
+
+'''
+total_cost = tf.Variable(0.0)
+
+# Get hte median frequency weights of the labels
+weights = loader.median_frequency_exp()
+for i in xrange(len(outputs)):
+	output = outputs[i]
+	predictions = tf.reshape(output, [-1, shape_output[1]* shape_output[2] , shape_output[3]]) # tf.reshape(output, [-1])
+	labels = tf.reshape(label, [-1, label_shape[1]* label_shape[2] , label_shape[3]]) # tf.reshape(output, [-1])
+	mask_labels = tf.reshape(mask_label, [-1, label_shape[1]* label_shape[2] , label_shape[3]]) # tf.reshape(output, [-1])
+
+	# calculate the loss [cross entropy]
+	#Clip output (softmax) for -inf values and calculate the log
+	#clipped_output =  tf.log(tf.clip_by_value(tf.nn.softmax(predictions), 1e-20, 1e+20))
+	log_softmax =  tf.nn.log_softmax(predictions)
+	# Compare to the label (loss)
+	softmax_loss = labels*log_softmax
+	# mask the loss
+	cost_masked = tf.reduce_mean(softmax_loss*mask_labels, axis=1)
+
+	# Apply the tweights to the loss and multiply for the number of classes (you are applying the mean)
+	cost_with_weights = tf.reduce_sum(cost_masked*weights, axis=1) 
+	# For normalizing the loss accoding to the number of pixels calculated, multiply for the percentage of  non mask pixels (valuable pixels)
+	mean_masking = tf.reduce_mean(mask_labels)
+	total_cost = total_cost - (tf.reduce_mean(cost_with_weights, axis=0) / mean_masking) * ((i*2 +1)/len(outputs))
+
+	print(total_cost)
 
 
+
+# For batch norm
+update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+with tf.control_dependencies(update_ops):
+
+	# Uso el optimizador de Adam y se quiere minimizar la funcion de coste
+	optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
+	train = optimizer.minimize(total_cost) # VARIABLES TO PTIMIZE 
+
+
+output = outputs[len(outputs)-1]
 predictions = tf.reshape(output, [-1, shape_output[1]* shape_output[2] , shape_output[3]]) # tf.reshape(output, [-1])
 labels = tf.reshape(label, [-1, label_shape[1]* label_shape[2] , label_shape[3]]) # tf.reshape(output, [-1])
 mask_labels = tf.reshape(mask_label, [-1, label_shape[1]* label_shape[2] , label_shape[3]]) # tf.reshape(output, [-1])
@@ -92,25 +136,12 @@ log_softmax =  tf.nn.log_softmax(predictions)
 softmax_loss = labels*log_softmax
 # mask the loss
 cost_masked = tf.reduce_mean(softmax_loss*mask_labels, axis=1)
-# Get hte median frequency weights of the labels
-weights = loader.median_frequency_exp()
+
 # Apply the tweights to the loss and multiply for the number of classes (you are applying the mean)
 cost_with_weights = tf.reduce_sum(cost_masked*weights, axis=1) 
 # For normalizing the loss accoding to the number of pixels calculated, multiply for the percentage of  non mask pixels (valuable pixels)
 mean_masking = tf.reduce_mean(mask_labels)
-cost = -tf.reduce_mean(cost_with_weights, axis=0) / mean_masking
-
-
-
-
-# For batch norm
-update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-with tf.control_dependencies(update_ops):
-
-	# Uso el optimizador de Adam y se quiere minimizar la funcion de coste
-	optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
-	train = optimizer.minimize(cost) # VARIABLES TO PTIMIZE 
-
+cost = - tf.reduce_mean(cost_with_weights, axis=0) / mean_masking
 
 
 '''

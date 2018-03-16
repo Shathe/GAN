@@ -50,15 +50,14 @@ def get_augmenter(name, c_val=0, vertical_flip=True):
             else:
                 value_flip=0
 
-            value_add = random.uniform(-10, 10)
+            value_add = random.uniform(-15, 15)
             value_Multiply = random.uniform(0.9, 1.1)
             value_GaussianBlur = random.uniform(0.0,0.00)
             ContrastNormalization = random.uniform(0.79, 1.35)
-            value_x = random.uniform(1, 1)
-            value_y = random.uniform(1, 1)
-            value_x2 = random.uniform(-0.20, 0.20)
-            value_y2 = random.uniform(-0.07, 0.07)
-            val_rotate = random.uniform(-0,0)
+            scale = random.uniform(0.8, 1.25)
+            value_x2 = random.uniform(-0.30, 0.30)
+            value_y2 = random.uniform(-0.20, 0.20)
+            val_rotate = random.uniform(-30,30)
 
             '''
             sometimes(iaa.Add((value_add, value_add))),
@@ -74,7 +73,7 @@ def get_augmenter(name, c_val=0, vertical_flip=True):
                 iaa.Fliplr(value_flip),  # horizontally flip 50% of the images
                 # iaa.Flipud(value_flip2),  # vertically flip 50% of the images
                 alot(iaa.Affine(
-                    scale={"x": (value_x), "y": (value_y)},
+                    scale={"x": (scale), "y": (scale)},
                     # scale images to 80-120% of their size, individually per axis
                     translate_percent={"x": (value_x2), "y": (value_y2)},
                     # translate by -20 to +20 percent (per axis)
@@ -101,7 +100,7 @@ def get_augmenter(name, c_val=0, vertical_flip=True):
                 iaa.Fliplr(value_flip),  # horizontally flip 50% of the images
                 # iaa.Flipud(value_flip2),  # vertically flip 50% of the images
                 alot(iaa.Affine(
-                    scale={"x": (value_x), "y": (value_y)},
+                    scale={"x": (scale), "y": (scale)},
                     # scale images to 80-120% of their size, individually per axis
                     translate_percent={"x": (value_x2), "y": (value_y2)},
                     # translate by -20 to +20 percent (per axis)
@@ -119,7 +118,7 @@ def get_augmenter(name, c_val=0, vertical_flip=True):
                 iaa.Fliplr(value_flip),  # horizontally flip 50% of the images
                 # iaa.Flipud(value_flip2),  # vertically flip 50% of the images
                 alot(iaa.Affine(
-                    scale={"x": (value_x), "y": (value_y)},
+                    scale={"x": (scale), "y": (scale)},
                     # scale images to 80-120% of their size, individually per axis
                     translate_percent={"x": (value_x2), "y": (value_y2)},
                     # translate by -20 to +20 percent (per axis)

@@ -1,85 +1,386 @@
 import tensorflow as tf
 
 
+def encoder_classif(input_x=None, n_classes=20, weights=None, width=224, height=224, channels=3, training=True):
 
-def complex(input_x=None, n_classes=20, weights=None, width=224, height=224, channels=3, training=True):
+    layer_index = 0
+    # a layer instance is callable on a tensor, and returns a tensor
+    x = conv2d_simple(input_x, 48, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+    x4 = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=4)
+    layer_index = layer_index + 1
+    x = tf.layers.average_pooling2d(x4, pool_size=(2, 2), strides=(2, 2), name='pool'+ str(layer_index))
+    layer_index = layer_index + 1
+    x3 = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=8)
+    layer_index = layer_index + 1
+    x = tf.layers.average_pooling2d(x3, pool_size=(2, 2), strides=(2, 2), name='pool'+ str(layer_index))
+    layer_index = layer_index + 1
+    x2 = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=12)
+    layer_index = layer_index + 1
+    x = tf.layers.average_pooling2d(x2, pool_size=(2, 2), strides=(2, 2), name='pool'+ str(layer_index))
+    layer_index = layer_index + 1
+    x1 = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=16)
+    layer_index = layer_index + 1
+    x6_ = tf.layers.average_pooling2d(x1, pool_size=(2, 2), strides=(2, 2), name='pool'+ str(layer_index))
+    layer_index = layer_index + 1
+
+
+    x6_ = concatenation_convs(x6_, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=24)
+    layer_index = layer_index + 1
+
+    # Global average pooling
+    x = tf.reduce_mean(x6_, [1,2])
+    # Last layer 
+    x = tf.layers.dense(x, n_classes)
+
+    return x
+
+
+
+def encoder_decoder_v1(input_x=None, n_classes=20, weights=None, width=224, height=224, channels=3, training=True):
     # paddign same, filtros mas pequemos.. 
 
 #hacer capas profundas con poca kernels, tambien hacer con dilataicones y con saltos
 
-    layer_index = increment(0)
+    layer_index = 0
     # a layer instance is callable on a tensor, and returns a tensor
     x = conv2d_simple(input_x, 48, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
+    layer_index = layer_index + 1
     x4 = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=4)
-    layer_index = increment(layer_index)
+    layer_index = layer_index + 1
     x = tf.layers.average_pooling2d(x4, pool_size=(2, 2), strides=(2, 2), name='pool'+ str(layer_index))
-    layer_index = increment(layer_index)
+    layer_index = layer_index + 1
     x3 = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=8)
-    layer_index = increment(layer_index)
+    layer_index = layer_index + 1
     x = tf.layers.average_pooling2d(x3, pool_size=(2, 2), strides=(2, 2), name='pool'+ str(layer_index))
-    layer_index = increment(layer_index)
+    layer_index = layer_index + 1
     x2 = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=12)
-    layer_index = increment(layer_index)
+    layer_index = layer_index + 1
     x = tf.layers.average_pooling2d(x2, pool_size=(2, 2), strides=(2, 2), name='pool'+ str(layer_index))
-    layer_index = increment(layer_index)
+    layer_index = layer_index + 1
     x1 = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=16)
-    layer_index = increment(layer_index)
+    layer_index = layer_index + 1
     x6_ = tf.layers.average_pooling2d(x1, pool_size=(2, 2), strides=(2, 2), name='pool'+ str(layer_index))
-    layer_index = increment(layer_index)
+    layer_index = layer_index + 1
 
 
     x6_ = concatenation_convs(x6_, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=24)
-    layer_index = increment(layer_index)
+    layer_index = layer_index + 1
     
     x = deconv2d_bn(x6_, 96, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
+    layer_index = layer_index + 1
     x = tf.concat([x, x1], axis=3)
     x5_ = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=16)
-    layer_index = increment(layer_index)
+    layer_index = layer_index + 1
 
     x = deconv2d_bn(x5_, 128, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
+    layer_index = layer_index + 1
     x = tf.concat([x, x2], axis=3)
     x4_ = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=12)
-    layer_index = increment(layer_index)
+    layer_index = layer_index + 1
     x = deconv2d_bn(x4_, 164, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
+    layer_index = layer_index + 1
     x = tf.concat([x, x3], axis=3)
     x3_ = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=8)
-    layer_index = increment(layer_index)
+    layer_index = layer_index + 1
     x = deconv2d_bn(x3_, 196, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
+    layer_index = layer_index + 1
     x = tf.concat([x, x4], axis=3)
     x2_ = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=4)
-    layer_index = increment(layer_index)
+    layer_index = layer_index + 1
     x = deconv2d_bn(x2_, 224, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
+    layer_index = layer_index + 1
 
 
 
 
     x3_ = deconv2d_bn(x3_, 64, 3, 3, padding='same', strides=(4 ,4), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
+    layer_index = layer_index + 1
     x4_ = deconv2d_bn(x4_, 48, 3, 3, padding='same', strides=(8, 8), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
+    layer_index = layer_index + 1
     x5_ = deconv2d_bn(x5_, 32, 3, 3, padding='same', strides=(16, 16), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
+    layer_index = layer_index + 1
     x6_ = deconv2d_bn(x6_, 16, 3, 3, padding='same', strides=(32,32), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
+    layer_index = layer_index + 1
 
 
     x = tf.concat([x, x3_, x4_, x5_, x6_], axis=3)
     print(x.get_shape())
 
-    layer_index = increment(layer_index)
+    layer_index = layer_index + 1
     x = conv2d_simple(x, n_classes, 1, 1, padding='same', strides=(1, 1), training=training,layer_index=layer_index, last=True)
 
     print(x.get_shape())
 
     return x
-#falta skip conections
 
+
+
+
+
+
+
+
+def encoder_decoder_v2(input_x=None, n_classes=20, weights=None, width=224, height=224, channels=3, training=True):
+    # paddign same, filtros mas pequemos.. 
+
+#hacer capas profundas con poca kernels, tambien hacer con dilataicones y con saltos
+
+    layer_index = 0
+    # a layer instance is callable on a tensor, and returns a tensor
+    x = conv2d_simple(input_x, 48, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+    x4 = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=4)
+    layer_index = layer_index + 1
+    x = tf.layers.average_pooling2d(x4, pool_size=(2, 2), strides=(2, 2), name='pool'+ str(layer_index))
+    layer_index = layer_index + 1
+    x3 = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=8)
+    layer_index = layer_index + 1
+    x = tf.layers.average_pooling2d(x3, pool_size=(2, 2), strides=(2, 2), name='pool'+ str(layer_index))
+    layer_index = layer_index + 1
+    x2 = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=12)
+    layer_index = layer_index + 1
+    x = tf.layers.average_pooling2d(x2, pool_size=(2, 2), strides=(2, 2), name='pool'+ str(layer_index))
+    layer_index = layer_index + 1
+    x1 = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=16)
+    layer_index = layer_index + 1
+    x6_ = tf.layers.average_pooling2d(x1, pool_size=(2, 2), strides=(2, 2), name='pool'+ str(layer_index))
+    layer_index = layer_index + 1
+
+
+    x6_ = concatenation_convs(x6_, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=24)
+    layer_index = layer_index + 1
+    
+    x = deconv2d_bn(x6_, 96, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+    x = tf.concat([x, x1], axis=3)
+    x5_ = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=16)
+    layer_index = layer_index + 1
+
+    x = deconv2d_bn(x5_, 128, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+    x = tf.concat([x, x2], axis=3)
+    x4_ = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=12)
+    layer_index = layer_index + 1
+    x = deconv2d_bn(x4_, 164, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+    x = tf.concat([x, x3], axis=3)
+    x3_ = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=8)
+    layer_index = layer_index + 1
+    x = deconv2d_bn(x3_, 196, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+    x = tf.concat([x, x4], axis=3)
+    x2_ = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=4)
+    layer_index = layer_index + 1
+    x = deconv2d_bn(x2_, 224, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+
+
+
+
+    x3_ = deconv2d_bn(x3_, 64, 3, 3, padding='same', strides=(4 ,4), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+    x4_ = deconv2d_bn(x4_, 48, 3, 3, padding='same', strides=(8, 8), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+    x5_ = deconv2d_bn(x5_, 32, 3, 3, padding='same', strides=(16, 16), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+    x6_ = deconv2d_bn(x6_, 16, 3, 3, padding='same', strides=(32,32), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+
+
+    x = tf.concat([x, x3_, x4_, x5_, x6_], axis=3)
+    print(x.get_shape())
+
+    layer_index = layer_index + 1
+    x = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=10)
+    layer_index = layer_index + 1
+
+    x = conv2d_simple(x, n_classes, 1, 1, padding='same', strides=(1, 1), training=training,layer_index=layer_index, last=True)
+
+    print(x.get_shape())
+
+    return x
+
+
+
+
+
+
+def encoder_decoder_v3(input_x=None, n_classes=20, weights=None, width=224, height=224, channels=3, training=True):
+    # paddign same, filtros mas pequemos.. 
+
+#hacer capas profundas con poca kernels, tambien hacer con dilataicones y con saltos
+
+    layer_index = 0
+    # a layer instance is callable on a tensor, and returns a tensor
+    x = conv2d_simple(input_x, 48, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+    x4 = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=4)
+    layer_index = layer_index + 1
+    x = tf.layers.average_pooling2d(x4, pool_size=(2, 2), strides=(2, 2), name='pool'+ str(layer_index))
+    layer_index = layer_index + 1
+    x3 = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=8)
+    layer_index = layer_index + 1
+    x = tf.layers.average_pooling2d(x3, pool_size=(2, 2), strides=(2, 2), name='pool'+ str(layer_index))
+    layer_index = layer_index + 1
+    x2 = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=12)
+    layer_index = layer_index + 1
+    x = tf.layers.average_pooling2d(x2, pool_size=(2, 2), strides=(2, 2), name='pool'+ str(layer_index))
+    layer_index = layer_index + 1
+    x1 = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=16)
+    layer_index = layer_index + 1
+    x6_ = tf.layers.average_pooling2d(x1, pool_size=(2, 2), strides=(2, 2), name='pool'+ str(layer_index))
+    layer_index = layer_index + 1
+
+
+    x6_ = concatenation_convs(x6_, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=24)
+    layer_index = layer_index + 1
+    x6_ = conv2d_simple(x6_, 48, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+    print('aaaaa')
+    print(x6_.get_shape())
+    shape =[tf.shape(x6_)[0],  x6_.get_shape()[1].value * x6_.get_shape()[2].value * x6_.get_shape()[3].value]
+    print(shape)
+    reshape_tensor = tf.reshape(x6_,shape)
+    print('aaaaa')
+    print(reshape_tensor.get_shape())
+    denso = tf.layers.dense(reshape_tensor,256)
+    denso = tf.layers.dense(denso,512)
+    denso = tf.layers.dense(denso,1568)
+    print(denso.get_shape())
+    reshape_tensor_denso = tf.reshape(denso,[tf.shape(denso)[0], 7, 7, 32 ])
+
+
+
+    x = deconv2d_bn(reshape_tensor_denso, 96, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+    x = tf.concat([x, x1], axis=3)
+    x5_ = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=16)
+    layer_index = layer_index + 1
+
+    x = deconv2d_bn(x5_, 128, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+    x = tf.concat([x, x2], axis=3)
+    x4_ = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=12)
+    layer_index = layer_index + 1
+    x = deconv2d_bn(x4_, 164, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+    x = tf.concat([x, x3], axis=3)
+    x3_ = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=8)
+    layer_index = layer_index + 1
+    x = deconv2d_bn(x3_, 196, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+    x = tf.concat([x, x4], axis=3)
+    x2_ = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=4)
+    layer_index = layer_index + 1
+    x = deconv2d_bn(x2_, 224, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+
+
+
+
+    x3_ = deconv2d_bn(x3_, 64, 3, 3, padding='same', strides=(4 ,4), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+    x4_ = deconv2d_bn(x4_, 48, 3, 3, padding='same', strides=(8, 8), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+    x5_ = deconv2d_bn(x5_, 32, 3, 3, padding='same', strides=(16, 16), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+    x6_ = deconv2d_bn(x6_, 16, 3, 3, padding='same', strides=(32,32), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+
+
+    x = tf.concat([x, x3_, x4_, x5_, x6_], axis=3)
+    print(x.get_shape())
+
+    layer_index = layer_index + 1
+    x = conv2d_simple(x, n_classes, 1, 1, padding='same', strides=(1, 1), training=training,layer_index=layer_index, last=True)
+
+    print(x.get_shape())
+
+    return x
+
+
+
+
+def encoder_decoder_v4(input_x=None, n_classes=20, weights=None, width=224, height=224, channels=3, training=True):
+    # paddign same, filtros mas pequemos.. 
+
+#hacer capas profundas con poca kernels, tambien hacer con dilataicones y con saltos
+
+    layer_index = 0
+    # a layer instance is callable on a tensor, and returns a tensor
+    x = conv2d_simple(input_x, 48, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+    x4 = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=4)
+    layer_index = layer_index + 1
+    x = tf.layers.average_pooling2d(x4, pool_size=(2, 2), strides=(2, 2), name='pool'+ str(layer_index))
+    layer_index = layer_index + 1
+    x3 = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=8)
+    layer_index = layer_index + 1
+    x = tf.layers.average_pooling2d(x3, pool_size=(2, 2), strides=(2, 2), name='pool'+ str(layer_index))
+    layer_index = layer_index + 1
+    x2 = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=12)
+    layer_index = layer_index + 1
+    x = tf.layers.average_pooling2d(x2, pool_size=(2, 2), strides=(2, 2), name='pool'+ str(layer_index))
+    layer_index = layer_index + 1
+    x1 = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=16)
+    layer_index = layer_index + 1
+    x6_ = tf.layers.average_pooling2d(x1, pool_size=(2, 2), strides=(2, 2), name='pool'+ str(layer_index))
+    layer_index = layer_index + 1
+
+
+    x6_ = concatenation_convs(x6_, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=24)
+    layer_index = layer_index + 1
+    
+    x = deconv2d_bn(x6_, 96, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+    x = tf.concat([x, x1], axis=3)
+    x5_ = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=16)
+    layer_index = layer_index + 1
+
+    x = deconv2d_bn(x5_, 128, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+    x = tf.concat([x, x2], axis=3)
+    x4_ = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=12)
+    layer_index = layer_index + 1
+    x = deconv2d_bn(x4_, 164, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+    x = tf.concat([x, x3], axis=3)
+    x3_ = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=8)
+    layer_index = layer_index + 1
+    x = deconv2d_bn(x3_, 196, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+    x = tf.concat([x, x4], axis=3)
+    x2_ = concatenation_convs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=4)
+    layer_index = layer_index + 1
+    x = deconv2d_bn(x2_, 224, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+
+
+
+
+    x3_ = deconv2d_bn(x3_, 64, 3, 3, padding='same', strides=(4 ,4), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+    x4_ = deconv2d_bn(x4_, 48, 3, 3, padding='same', strides=(8, 8), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+    x5_ = deconv2d_bn(x5_, 32, 3, 3, padding='same', strides=(16, 16), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+    x6_ = deconv2d_bn(x6_, 16, 3, 3, padding='same', strides=(32,32), training=training, layer_index=layer_index)
+    layer_index = layer_index + 1
+
+
+    x = tf.concat([x, x3_, x4_, x5_, x6_], axis=3)
+    print(x.get_shape())
+
+
+    layer_index = layer_index + 1
+    outputs= concatenation_convs_outputs(x, 16, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index, times=10, n_classes=n_classes)
+
+
+
+    print(x.get_shape())
+
+    return outputs
 
 
 
@@ -96,6 +397,11 @@ def conv2d_simple(x, filters, num_row, num_col, padding='same', strides=(1, 1), 
             x = tf.nn.leaky_relu(x, name='Lrelu'+ str(layer_index))
 
         return x
+
+
+
+
+
 
 
 def conv2d_bn(x, filters, num_row, num_col, padding='same', strides=(1, 1), dilation_rate=(1, 1), training=True,  layer_index=0, dilated=True ):
@@ -138,6 +444,7 @@ def conv2d_bn(x, filters, num_row, num_col, padding='same', strides=(1, 1), dila
 
 
 
+
 def deconv2d_bn(x, filters, num_row, num_col, padding='same', strides=(1, 1), training=True, activation=None, layer_index=0):
     with tf.variable_scope('deconv2d_bn_'+str(layer_index)):
         print('deconv')
@@ -149,7 +456,7 @@ def deconv2d_bn(x, filters, num_row, num_col, padding='same', strides=(1, 1), tr
 
         return x
 
-def concatenation_convs(x, filters, num_row, num_col, padding='same', strides=(1, 1), dilation_rate=(1, 1), training=True,  layer_index=0, times=6, compression=0.5):
+def concatenation_convs(x, filters, num_row, num_col, padding='same', strides=(1, 1), dilation_rate=(1, 1), training=True,  layer_index=0, times=6, compression=0.40):
     with tf.variable_scope('concat_'+str(layer_index)):
 
         next_input = x
@@ -170,155 +477,24 @@ def concatenation_convs(x, filters, num_row, num_col, padding='same', strides=(1
     return next_input
 
 
-def increment(layer_index):
-    return layer_index + 1
+
+def concatenation_convs_outputs(x, filters, num_row, num_col, padding='same', strides=(1, 1), dilation_rate=(1, 1), training=True,  layer_index=0, times=6, compression=0.40, n_classes=10):
+    with tf.variable_scope('concat_'+str(layer_index)):
+    	outputs=[]
+        next_input = x
+        for time in xrange(times):
+
+            output = conv2d_bn(next_input, filters, num_row, num_col, padding=padding, strides=strides, dilation_rate=dilation_rate, training=training, layer_index=layer_index+time)
+
+            next_input = tf.concat([output, next_input], axis=3)
+            layer_index = layer_index + 1
+
+            new_out = conv2d_simple(output, n_classes, 1, 1, padding='same', strides=(1, 1), training=training,layer_index=layer_index, last=True)
+
+            outputs = outputs + [new_out]
 
 
 
+    return outputs
 
 
-def simple(input_x=None, n_classes=20, weights=None, width=224, height=224, channels=3, training=True):
-    # paddign same, filtros mas pequemos.. 
-
-#hacer capas profundas con poca kernels, tambien hacer con dilataicones y con saltos
-
-    layer_index = increment(0)
-    # a layer instance is callable on a tensor, and returns a tensor
-    layer_index = increment(layer_index)
-    x = conv2d_simple(input_x, 64, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index)
-    print(x.get_shape())
-    layer_index = increment(layer_index)
-    x6 = conv2d_simple(x, 64, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index)
-    x = tf.layers.average_pooling2d(x6, pool_size=(2, 2), strides=(2, 2), name='pool'+ str(layer_index))
-    layer_index = increment(layer_index)
-    print(x.get_shape())
-    x = conv2d_simple(x, 96, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index)
-    print(x.get_shape())
-    layer_index = increment(layer_index)
-    x = conv2d_simple(x, 96, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index)
-    print(x.get_shape())
-    layer_index = increment(layer_index)
-    x5 = conv2d_simple(x, 96, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index)
-    x = tf.layers.average_pooling2d(x5, pool_size=(2, 2), strides=(2, 2), name='pool'+ str(layer_index))
-    layer_index = increment(layer_index)
-    print(x.get_shape())
-    x = conv2d_simple(x, 96, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index)
-    print(x.get_shape())
-    layer_index = increment(layer_index)
-    x = conv2d_simple(x, 96, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index)
-    print(x.get_shape())
-    layer_index = increment(layer_index)
-    x4 = conv2d_simple(x, 96, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index)
-    x = tf.layers.average_pooling2d(x4, pool_size=(2, 2), strides=(2, 2), name='pool'+ str(layer_index))
-    layer_index = increment(layer_index)
-    print(x.get_shape())
-    x = conv2d_simple(x, 96, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index)
-    print(x.get_shape())
-    layer_index = increment(layer_index)
-    x = conv2d_simple(x, 96, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index)
-    print(x.get_shape())
-    layer_index = increment(layer_index)
-    x = conv2d_simple(x, 96, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index)
-    print(x.get_shape())
-    layer_index = increment(layer_index)
-    x3 = conv2d_simple(x, 96, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index)
-    x = tf.layers.average_pooling2d(x3, pool_size=(2, 2), strides=(2, 2), name='pool'+ str(layer_index))
-    layer_index = increment(layer_index)
-    print(x.get_shape())
-    x = conv2d_simple(x, 128, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index)
-    print(x.get_shape())
-    layer_index = increment(layer_index)
-    x = conv2d_simple(x, 128, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index)
-    print(x.get_shape())
-    layer_index = increment(layer_index)
-    x = conv2d_simple(x, 128, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index)
-    print(x.get_shape())
-    layer_index = increment(layer_index)
-    x2 = conv2d_simple(x, 128, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index)
-    x = tf.layers.average_pooling2d(x2, pool_size=(2, 2), strides=(2, 2), name='pool'+ str(layer_index))
-    layer_index = increment(layer_index)
-    print(x.get_shape())
-    layer_index = increment(layer_index)
-    x = conv2d_simple(x, 128, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
-    x = conv2d_simple(x, 128, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
-    x = conv2d_simple(x, 128, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index)
-    
-
-    x = deconv2d_bn(x, 128, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
-    x = tf.concat([x, x2], axis=3)
-    print(x.get_shape())
-    x = conv2d_simple(x, 128, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
-    x2_ = conv2d_simple(x, 128, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
-
-    x = deconv2d_bn(x2_, 96, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
-    x = tf.concat([x, x3], axis=3)
-    print(x.get_shape())
-    x = conv2d_simple(x, 96, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
-    x3_ = conv2d_simple(x, 96, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
-
-
-    x = deconv2d_bn(x3_, 96, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
-    x = tf.concat([x, x4], axis=3)
-    print(x.get_shape())
-    x = conv2d_simple(x, 96, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
-    x4_ = conv2d_simple(x, 96, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
-
-
-    x = deconv2d_bn(x, 96, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
-    x = tf.concat([x, x5], axis=3)
-    print(x.get_shape())
-    x = conv2d_simple(x, 96, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
-    x5_ = conv2d_simple(x, 96, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
-
-
-    x = deconv2d_bn(x5_, 96, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
-    x = tf.concat([x, x6], axis=3)
-    print(x.get_shape())
-    x = conv2d_simple(x, 96, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
-    x = conv2d_simple(x, 96, 3, 3, padding='same', strides=(1, 1), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
-
-
-
-    x5_ = deconv2d_bn(x5_, 96, 3, 3, padding='same', strides=(2, 2), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
-    x4_ = deconv2d_bn(x4_, 96, 3, 3, padding='same', strides=(4, 4), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
-    x3_ = deconv2d_bn(x3_, 128, 3, 3, padding='same', strides=(8, 8), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
-    x2_ = deconv2d_bn(x2_, 128, 3, 3, padding='same', strides=(16,16), training=training, layer_index=layer_index)
-    layer_index = increment(layer_index)
-
-    x = tf.concat([x, x2_, x3_, x4_, x5_], axis=3)
-    print(x.get_shape())
-
-    '''
-    x = conv2d_simple(x, int(x.get_shape()[3]/5), 3, 3, padding='same', strides=(1, 1), training=training, last=True, layer_index=layer_index)
-    layer_index = increment(layer_index)
-    print(x.get_shape())
-    '''
-    x = conv2d_simple(x, n_classes, 3, 3, padding='same', strides=(1, 1), training=training, last=True, layer_index=layer_index)
-    print(x.get_shape())
-    return x
-
-# complex Accuracy total: 0.782648680291974 test
-# train entre 0.87-0.94
-
-#simple Accuracy total: 0.690694763680896
-# train 00.8-0.91

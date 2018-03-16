@@ -244,12 +244,11 @@ class Loader:
 
 		for image_label_train in self.label_train_list:
 			image = cv2.imread(image_label_train,0)
-
 			for label in xrange(self.n_classes):
 				self.freq[label] = self.freq[label] + sum(sum(image == label))
-
+				
 		zeros = self.freq == 0
-		if len(zeros) > 0:
+		if sum(zeros) > 0:
 			print('There are some classes which are not contained in the training samples')
 
 		results = np.median(self.freq)/self.freq
