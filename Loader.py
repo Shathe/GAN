@@ -107,15 +107,20 @@ class Loader:
 		# for every random image, get the image, label and mask.
 		# the augmentation has to be done separately due to augmentation
 		for index in range(size):
-			img = cv2.imread(random_images[index])
+			if self.dim == 1:
+				img = cv2.imread(random_images[index], 0)
+			else:
+				img = cv2.imread(random_images[index], 0)
+
 			label = cv2.imread(random_labels[index],0)
-			if img.shape[1] != self.width and img.shape[0] != self.height:
+
+
+			if img.shape[1] != self.width or img.shape[0] != self.height:
 				img = cv2.resize(img, (self.width, self.height), interpolation = cv2.INTER_AREA)
-			if label.shape[1] != self.width and label.shape[0] != self.height:
+			if label.shape[1] != self.width or label.shape[0] != self.height:
 				label = cv2.resize(label, (self.width, self.height), interpolation = cv2.INTER_NEAREST)
 			macara = mask_expanded[index, :, :, 0] 
-
-			if train and augmenter and random.random()<0.90:
+			if train and augmenter and random.random()<0.95:
 				seq_image2, seq_image, seq_label, seq_mask = get_augmenter(name=augmenter, c_val=self.ignore_label)
 
 				#apply some contrast  to de rgb image
@@ -123,41 +128,23 @@ class Loader:
 				img = seq_image2.augment_images(img)  
 				img=img.reshape(img.shape[1:])
 
-				if random.random()<0.90:
+				if random.random()<0.95:
 					#Apply shifts and rotations to the mask, labels and image
 					
 					# Reshapes for the AUGMENTER framework
 					# the loops are due to the external library failures
 					
-					cuenta_ignore=sum(sum(sum(img==self.ignore_label)))
-					cuenta_ignore2=cuenta_ignore
-					i=0
-					while abs(cuenta_ignore2-cuenta_ignore)<5 and i<15:
-						img=img.reshape(sum(((1,),img.shape),()))
-						img = seq_image.augment_images(img)  
-						img=img.reshape(img.shape[1:])
-						cuenta_ignore2=sum(sum(sum(img==self.ignore_label)))
-						i = i+ 1
+					img=img.reshape(sum(((1,),img.shape),()))
+					img = seq_image.augment_images(img)  
+					img=img.reshape(img.shape[1:])
 
-					cuenta_ignore=sum(sum(label==self.ignore_label))
-					cuenta_ignore2=cuenta_ignore
-					i=0
-					while cuenta_ignore2==cuenta_ignore and i<15:
-						label=label.reshape(sum(((1,),label.shape),()))
-						label = seq_label.augment_images(label)
-						label=label.reshape(label.shape[1:])
-						cuenta_ignore2=sum(sum(label==self.ignore_label))
-						i = i+ 1
+					label=label.reshape(sum(((1,),label.shape),()))
+					label = seq_label.augment_images(label)
+					label=label.reshape(label.shape[1:])
 
-					cuenta_ignore=sum(sum(macara==self.ignore_label))
-					cuenta_ignore2=cuenta_ignore
-					i=0
-					while cuenta_ignore2==cuenta_ignore and i<15:
-						macara=macara.reshape(sum(((1,),macara.shape),()))
-						macara = seq_mask.augment_images(macara)
-						macara=macara.reshape(macara.shape[1:])
-						cuenta_ignore2=sum(sum(macara==self.ignore_label))
-						i = i+ 1
+					macara=macara.reshape(sum(((1,),macara.shape),()))
+					macara = seq_mask.augment_images(macara)
+					macara=macara.reshape(macara.shape[1:])
 
 
 			if self.ignore_label and not validation:
@@ -166,6 +153,8 @@ class Loader:
 				macara[mask_ignore] = 0
 				label[mask_ignore] = 0
 
+			if self.dim == 1:
+				img = np.reshape(img, (img.shape[0], img.shape[1], self.dim))
 
 			x[index, :, :, :] = img
 			y[index, :, :] = label
@@ -175,10 +164,13 @@ class Loader:
 		# the labeling to categorical (if 5 classes and value is 2:  2 -> [0,0,1,0,0])
 		a, b, c =y.shape
 		y = y.reshape((a*b*c))
+
 		if self.ignore_label and validation:
 			y = to_categorical(y, num_classes=self.n_classes+1)
 		else:
 			y = to_categorical(y, num_classes=self.n_classes)
+
+
 		y = y.reshape((a,b,c,self.n_classes)).astype(np.uint8)
 		x = x.astype(np.float32) / 255.0 - 0.5
 		return x, y, mask_expanded
@@ -240,7 +232,7 @@ class Loader:
 		elif self.problemType == 'DVS':
 			return self._get_batch_DVS(size=size, train=train)
 
-	def median_frequency_exp(self):
+	def median_frequency_exp(self, soft=0.30):
 
 		for image_label_train in self.label_train_list:
 			image = cv2.imread(image_label_train,0)
@@ -253,7 +245,7 @@ class Loader:
 
 		results = np.median(self.freq)/self.freq
 		results[zeros]=0 # for not inf values.
-
+		results = np.power(results,soft)
 		return results
 
 		
@@ -266,33 +258,16 @@ if __name__ == "__main__":
 	'''
 	#	
 
-	loader = Loader('./clothes', problemType = 'segmentation', ignore_label=255, n_classes=70)
-	print(loader.median_frequency_exp())
-	x, y, mask =loader.get_batch(size=50)#, augmenter='segmentation'
+	loader = Loader('./text', problemType = 'segmentation', ignore_label=255, n_classes=2)
+	# print(loader.median_frequency_exp())
+	x, y, mask =loader.get_batch(size=50, augmenter='segmentation')#
 	print(x.shape)
-	print(np.argmax(y,3).shape)
-	print(mask.shape)
 	for i in xrange(50):
-		print(np.unique(np.argmax(y,3)*12))
-		print(np.unique(mask[i,:,:]*255))
-		print((np.argmax(y,3)*12).dtype)
-		print(mask.dtype)
-		cv2.imshow('x',x[i,:,:,:])
-		imagen_label=np.argmax(y,3)[i,:,:]
 
-		cv2.imshow('label',imagen_label)
+		cv2.imshow('x',x[i,:,:,:])
+		cv2.imshow('y',(np.argmax(y,3)[i,:,:]*255).astype(np.uint8))
+		print(mask.shape)
 		cv2.imshow('mask',mask[i,:,:,0]*255)
-
-		for label in xrange(12):
-
-			imagen_label=np.argmax(y,3)[i,:,:]
-			imagen_label[imagen_label==label]=255
-			imagen_label[imagen_label!=255]=0 
-			cv2.imshow(str(label),(imagen_label).astype(np.uint8))
-			cv2.waitKey(0)
-		cv2.imshow('x',x[i,:,:,:])
-		cv2.imshow('y',(np.argmax(y,3)[i,:,:]*12).astype(np.uint8))
-		cv2.imshow('mask',mask[i,:,:]*255)
 		cv2.waitKey(0)
 	cv2.destroyAllWindows()
 	x, y, mask =loader.get_batch(size=3, train=False)

@@ -14,6 +14,7 @@ import imgaug as ia
 from augmenters import get_augmenter
 import tensorflow.contrib.slim as slim
 import Network
+import NetworkShathe
 import cv2
 import math
 
@@ -21,18 +22,20 @@ random.seed(os.urandom(9))
 #tensorboard --logdir=train:./logs/train,test:./logs/test/
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--dataset", help="Dataset to train", default='./VOC')  # 'Datasets/MNIST-Big/'
+parser.add_argument("--dataset", help="Dataset to train", default='./camvid')  # 'Datasets/MNIST-Big/'
 parser.add_argument("--dimensions", help="Temporal dimensions to get from each sample", default=3)
 parser.add_argument("--augmentation", help="Image augmentation", default=1)
-parser.add_argument("--init_lr", help="Initial learning rate", default=5e-4)
-parser.add_argument("--min_lr", help="Initial learning rate", default=1e-7)
+parser.add_argument("--init_lr", help="Initial learning rate", default=2e-3)
+parser.add_argument("--medium_lr", help="Initial learning rate", default=7e-5)
+parser.add_argument("--min_lr", help="Initial learning rate", default=3e-8)
 parser.add_argument("--init_batch_size", help="batch_size", default=4)
 parser.add_argument("--max_batch_size", help="batch_size", default=4)
-parser.add_argument("--n_classes", help="number of classes to classify", default=21)
-parser.add_argument("--ignore_label", help="class to ignore", default=255)
-parser.add_argument("--epochs", help="Number of epochs to train", default=400)
-parser.add_argument("--width", help="width", default=224)
-parser.add_argument("--height", help="height", default=224)
+parser.add_argument("--n_classes", help="number of classes to classify", default=11)
+parser.add_argument("--ignore_label", help="class to ignore", default=11)
+parser.add_argument("--epochs", help="Number of epochs to train", default=1000)
+parser.add_argument("--medium_epochs", help="Number of epochs to train", default=750)
+parser.add_argument("--width", help="width", default=256) 
+parser.add_argument("--height", help="height", default=256)
 parser.add_argument("--save_model", help="save_model", default=1)
 args = parser.parse_args()
 
@@ -41,17 +44,20 @@ args = parser.parse_args()
 # Hyperparameter
 init_learning_rate = float(args.init_lr)
 min_learning_rate = float(args.min_lr)
+medium_lr_learning_rate = float(args.medium_lr)
 augmentation = bool(int(args.augmentation))
 save_model = bool(int(args.save_model ))
 init_batch_size = int(args.init_batch_size)
 max_batch_size = int(args.max_batch_size)
 total_epochs = int(args.epochs)
+medium_epochs = int(args.medium_epochs)
 width = int(args.width)
 n_classes = int(args.n_classes)
 ignore_label = int(args.ignore_label)
 height = int(args.height)
 channels = int(args.dimensions)
-change_lr_epoch = math.pow(min_learning_rate/init_learning_rate, 1.0/total_epochs)
+change_lr_epoch = math.pow(medium_lr_learning_rate/init_learning_rate, 1.0/(medium_epochs-1))
+change_lr_epoch_last = math.pow(min_learning_rate/medium_lr_learning_rate, 1.0/(total_epochs-medium_epochs-1))
 change_batch_size = (max_batch_size - init_batch_size) / float(total_epochs - 1)
 
 
@@ -74,17 +80,16 @@ mask_label = tf.placeholder(tf.float32, shape=[None, height, width, n_classes], 
 
 learning_rate = tf.placeholder(tf.float32, name='learning_rate')
 
+
 # Network
-outputs = Network.encoder_decoder_v4(input_x=x, n_classes=n_classes, width=width, height=height, channels=channels, training=training_flag)
+netShathe = NetworkShathe.NetworkShathe()
+outputs = netShathe.net(input_x=x, n_classes=n_classes, width=width, height=height, channels=channels, training=training_flag)
 
 shape_output = outputs[0].get_shape()
 label_shape = label.get_shape()
 print(outputs[0].get_shape())
-'''
 
-el accuracy soloc on el ultimo output pero loss con todos pero dando pesos 
 
-'''
 total_cost = tf.Variable(0.0)
 
 # Get hte median frequency weights of the labels
@@ -99,9 +104,11 @@ for i in xrange(len(outputs)):
 	#Clip output (softmax) for -inf values and calculate the log
 	#clipped_output =  tf.log(tf.clip_by_value(tf.nn.softmax(predictions), 1e-20, 1e+20))
 	log_softmax =  tf.nn.log_softmax(predictions)
+
 	# Compare to the label (loss)
 	softmax_loss = labels*log_softmax
 	# mask the loss
+
 	cost_masked = tf.reduce_mean(softmax_loss*mask_labels, axis=1)
 
 	# Apply the tweights to the loss and multiply for the number of classes (you are applying the mean)
@@ -110,7 +117,7 @@ for i in xrange(len(outputs)):
 	mean_masking = tf.reduce_mean(mask_labels)
 	total_cost = total_cost - (tf.reduce_mean(cost_with_weights, axis=0) / mean_masking) * ((i*2 +1)/len(outputs))
 
-	print(total_cost)
+
 
 
 
@@ -142,6 +149,9 @@ cost_with_weights = tf.reduce_sum(cost_masked*weights, axis=1)
 # For normalizing the loss accoding to the number of pixels calculated, multiply for the percentage of  non mask pixels (valuable pixels)
 mean_masking = tf.reduce_mean(mask_labels)
 cost = - tf.reduce_mean(cost_with_weights, axis=0) / mean_masking
+
+
+
 
 
 '''
@@ -205,7 +215,7 @@ print("Total parameters of the net: " + str(total_parameters)+ " == " + str(tota
 
  
 # Times to show information of batch traiingn and test
-times_show_per_epoch = 15
+times_show_per_epoch = 25
 saver = tf.train.Saver(tf.global_variables())
 
 if not os.path.exists('./model/best'):
@@ -306,7 +316,13 @@ with tf.Session() as sess:
 		print(str(segundos_per_epoch * epochs_left)+' seconds to end the training. Hours: ' + str(segundos_per_epoch * epochs_left/3600.0))
 	
 		#agument batch_size per epoch and decrease the learning rate
-		epoch_learning_rate = init_learning_rate * math.pow(change_lr_epoch, epoch)
+
+		if medium_epochs <= epoch + 1:
+			# change lr different
+			epoch_learning_rate = medium_lr_learning_rate * math.pow(change_lr_epoch_last, epoch - medium_epochs + 1 )
+		else:
+			epoch_learning_rate = init_learning_rate * math.pow(change_lr_epoch, epoch + 1)
+
 		batch_size_decimal = batch_size_decimal + change_batch_size
 	
 

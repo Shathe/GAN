@@ -10,10 +10,6 @@ import NetworkShathe
 
 import argparse
 import time
-from Loader import Loader
-from imgaug import augmenters as iaa
-import imgaug as ia
-from augmenters import get_augmenter
 import tensorflow.contrib.slim as slim
 import Network
 import cv2
@@ -54,9 +50,6 @@ channels = int(args.dimensions)
 change_lr_epoch = math.pow(min_learning_rate/init_learning_rate, 1.0/total_epochs)
 change_batch_size = (max_batch_size - init_batch_size) / float(total_epochs - 1)
 
-loader = Loader(dataFolderPath=args.dataset, n_classes=n_classes, problemType = 'segmentation', width=width, height=height, ignore_label = ignore_label)
-testing_samples = len(loader.image_test_list)
-training_samples = len(loader.image_train_list)
 
 
 # For Batch_norm or dropout operations: training or testing
@@ -92,29 +85,14 @@ labels = tf.reshape(label, [-1, label_shape[1]* label_shape[2] , label_shape[3]]
 output_image = tf.expand_dims(tf.cast(tf.argmax(output, 3), tf.float32), -1)
 mask_labels = tf.reshape(mask_label, [-1, label_shape[1]* label_shape[2] , label_shape[3]]) # tf.reshape(output, [-1])
 
+path= '/home/msrobot/Downloads/AGZ_subset/MAV Images/00001.jpg'
+path= 'text/images/train/img_1.jpg'
 
- 
-# Metrics
 
-correct_prediction = tf.equal(tf.argmax(labels, 2), tf.argmax(predictions, 2))
-accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-correct_prediction = tf.equal(tf.argmax(predictions, 2), tf.argmax(labels, 2))
-
-correct_prediction_masked=tf.cast(correct_prediction, tf.float32)*tf.reduce_mean(mask_labels, axis=2)
-sum_correc_masked=tf.reduce_sum(correct_prediction_masked)
-sum_mask=tf.reduce_sum(tf.reduce_mean(mask_labels, axis=2))
-accuracy = sum_correc_masked/sum_mask
-
-# para metricas, que haya 20 clases
-if 'voc' in args.dataset.lower():
-	n_classes = n_classes - 1
-
-acc, acc_op  = tf.metrics.accuracy(tf.argmax(labels, 2),tf.argmax(predictions, 2))
-mean_acc, mean_acc_op = tf.metrics.mean_per_class_accuracy(tf.argmax(labels, 2), tf.argmax(predictions, 2), n_classes)
-miou, miou_op = tf.metrics.mean_iou(tf.argmax(labels, 2), tf.argmax(predictions, 2), n_classes)
-
-# args.dataset
- 
+img = cv2.imread(path)
+img = cv2.resize(img, (width, height), interpolation = cv2.INTER_AREA)
+img = img.astype(np.float32) / 255.0 - 0.5
+img = np.reshape(img, (1, width, height, channels))
 
 saver = tf.train.Saver(tf.global_variables())
 
@@ -126,41 +104,29 @@ with tf.Session() as sess:
 	if ckpt_best and tf.train.checkpoint_exists(ckpt_best.model_checkpoint_path):
 		saver.restore(sess, ckpt.model_checkpoint_path)
 
-	# TEST
-	count = 0
-	suma_acc = 0
-	for i in xrange(0, testing_samples, max_batch_size):
-		if i + max_batch_size > testing_samples:
-			max_batch_size = testing_samples - i
-		x_test, y_test, mask_test = loader.get_batch(size=max_batch_size, train=False, index=i, validation=True)
-		count = count + 1
-		test_feed_dict = {
-			x: x_test,
-			label: y_test,
-			training_flag: False,
-			mask_label: mask_test
-		}
-		accuracy_rates, acc_update, acc_total, miou_update, miou_total,mean_acc_total, mean_acc_update = sess.run([accuracy, acc_op, acc, miou_op, miou, mean_acc, mean_acc_op], feed_dict=test_feed_dict)
-		suma_acc = suma_acc + accuracy_rates*max_batch_size
-
-
-	print("Masked accuracy: " + str(suma_acc/testing_samples))
-	print("Accuracy: " + str(acc_update))
-	print("miou: " + str(miou_total))
-	print("mean accuracy: " + str(mean_acc_total))
-
-	x_test, y_test, mask_test = loader.get_batch(size=1, train=False, index=0, validation=True)
 
 	import time
+	image_salida = output_image.eval(feed_dict={x: img, training_flag : False})
+
+	saver.restore(sess, ckpt_best.model_checkpoint_path)
+
 	first = time.time()
-	predictions = sess.run(output_image, feed_dict={x: x_test, training_flag : False})
+	image_salida2 = output_image.eval(feed_dict={x: img, training_flag : False})
 	second = time.time()
 	print(str(second - first) + " seconds to load")
 
 
-	first = time.time()
-	output_image.eval(feed_dict={x: x_test, training_flag : False})
-	second = time.time()
-	print(str(second - first) + " seconds to load")
+	image_salida  = np.reshape(image_salida, (width, height, 1))
+	img = cv2.imread(path)
+	image_salida = cv2.resize(image_salida, (img.shape[1], img.shape[0]), interpolation = cv2.INTER_AREA)
+	cv2.imshow('image',img)
+	mask_last = img.copy()
+	mask_last[:,:,0] = mask_last[:,:,0] * image_salida
+	mask_last[:,:,1] = mask_last[:,:,1] * image_salida
+	mask_last[:,:,2] = mask_last[:,:,2] * image_salida
 
-# mejor complex sin regularizer y droput: 0.80/0.77, 0.44, 0.66
+
+
+	cv2.imshow('last',mask_last)
+	cv2.waitKey(0)
+	cv2.destroyAllWindows()

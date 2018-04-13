@@ -44,20 +44,21 @@ def get_augmenter(name, c_val=0, vertical_flip=True):
                 value_flip=1
             else:
                 value_flip=0
+                
             value_flip2 = round(random.random())
             if value_flip2>0.5:
-                value_flip=1
+                value_flip2=1
             else:
-                value_flip=0
+                value_flip2=0
 
             value_add = random.uniform(-15, 15)
             value_Multiply = random.uniform(0.9, 1.1)
-            value_GaussianBlur = random.uniform(0.0,0.00)
+            value_GaussianBlur = random.uniform(0.0,0.40)
             ContrastNormalization = random.uniform(0.79, 1.35)
-            scale = random.uniform(0.8, 1.25)
+            scale = random.uniform(0.8, 1.3)
             value_x2 = random.uniform(-0.30, 0.30)
             value_y2 = random.uniform(-0.20, 0.20)
-            val_rotate = random.uniform(-30,30)
+            val_rotate = random.uniform(-13,13)
 
             '''
             sometimes(iaa.Add((value_add, value_add))),
@@ -72,7 +73,7 @@ def get_augmenter(name, c_val=0, vertical_flip=True):
             seq_image = iaa.Sequential([
                 iaa.Fliplr(value_flip),  # horizontally flip 50% of the images
                 # iaa.Flipud(value_flip2),  # vertically flip 50% of the images
-                alot(iaa.Affine(
+                iaa.Affine(
                     scale={"x": (scale), "y": (scale)},
                     # scale images to 80-120% of their size, individually per axis
                     translate_percent={"x": (value_x2), "y": (value_y2)},
@@ -86,11 +87,11 @@ def get_augmenter(name, c_val=0, vertical_flip=True):
                     # cval=c_val,  # if mode is constant, use a cval between 0 and 255
                     # mode=ia.ALL  # use any of scikit-image's warping modes (see 2nd image from the top for examples)
 
-                ))])
+                )])
             
             seq_image2 = iaa.Sequential([
-                sometimes(iaa.Add((value_add, value_add))),
-                sometimes(iaa.Multiply((value_Multiply, value_Multiply), per_channel=False)),
+                #sometimes(iaa.Add((value_add, value_add))),
+                #sometimes(iaa.Multiply((value_Multiply, value_Multiply), per_channel=False)),
                 sometimes(iaa.GaussianBlur(sigma=(value_GaussianBlur, value_GaussianBlur))),
                 sometimes(iaa.ContrastNormalization((ContrastNormalization, ContrastNormalization)))])
             
@@ -99,7 +100,7 @@ def get_augmenter(name, c_val=0, vertical_flip=True):
             seq_label = iaa.Sequential([
                 iaa.Fliplr(value_flip),  # horizontally flip 50% of the images
                 # iaa.Flipud(value_flip2),  # vertically flip 50% of the images
-                alot(iaa.Affine(
+                iaa.Affine(
                     scale={"x": (scale), "y": (scale)},
                     # scale images to 80-120% of their size, individually per axis
                     translate_percent={"x": (value_x2), "y": (value_y2)},
@@ -110,25 +111,25 @@ def get_augmenter(name, c_val=0, vertical_flip=True):
                     mode="constant" # `edge`, `wrap`, `reflect` or `symmetric`
                     # cval=(0, 255),  # if mode is constant, use a cval between 0 and 255
                     # mode=ia.ALL  # use any of scikit-image's warping modes (see 2nd image from the top for examples)
-                ))])
+                )])
 
 
             
             seq_mask = iaa.Sequential([
                 iaa.Fliplr(value_flip),  # horizontally flip 50% of the images
                 # iaa.Flipud(value_flip2),  # vertically flip 50% of the images
-                alot(iaa.Affine(
+                iaa.Affine(
                     scale={"x": (scale), "y": (scale)},
                     # scale images to 80-120% of their size, individually per axis
                     translate_percent={"x": (value_x2), "y": (value_y2)},
                     # translate by -20 to +20 percent (per axis)
                     rotate=(val_rotate),  # rotate by -45 to +45 degrees
                     order=0,  #bilinear interpolation (fast)
-                    cval=c_val,
+                    cval=0,
                     mode="constant" # `edge`, `wrap`, `reflect` or `symmetric`
                     # cval=c_val,  # if mode is constant, use a cval between 0 and 255
                     # mode=ia.ALL  # use any of scikit-image's warping modes (see 2nd image from the top for examples)
-                ))])
+                )])
              
 
             return seq_image2, seq_image, seq_label, seq_mask
