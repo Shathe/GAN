@@ -21,16 +21,16 @@ random.seed(os.urandom(9))
 #tensorboard --logdir=train:./logs/train,test:./logs/test/
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--dataset", help="Dataset to train", default='./text')  # 'Datasets/MNIST-Big/'
-parser.add_argument("--dimensions", help="Temporal dimensions to get from each sample", default=1)
+parser.add_argument("--dataset", help="Dataset to train", default='./camvid')  # 'Datasets/MNIST-Big/'
+parser.add_argument("--dimensions", help="Temporal dimensions to get from each sample", default=3)
 parser.add_argument("--augmentation", help="Image augmentation", default=1)
 parser.add_argument("--init_lr", help="Initial learning rate", default=8e-4)
 parser.add_argument("--medium_lr", help="Initial learning rate", default=3e-5)
 parser.add_argument("--min_lr", help="Initial learning rate", default=3e-8)
-parser.add_argument("--init_batch_size", help="batch_size", default=128)
-parser.add_argument("--max_batch_size", help="batch_size", default=512)
-parser.add_argument("--n_classes", help="number of classes to classify", default=2)
-parser.add_argument("--ignore_label", help="class to ignore", default=255)
+parser.add_argument("--init_batch_size", help="batch_size", default=4)
+parser.add_argument("--max_batch_size", help="batch_size", default=4)
+parser.add_argument("--n_classes", help="number of classes to classify", default=11)
+parser.add_argument("--ignore_label", help="class to ignore", default=11)
 parser.add_argument("--epochs", help="Number of epochs to train", default=500)
 parser.add_argument("--medium_epochs", help="Number of epochs to train", default=350)
 parser.add_argument("--width", help="width", default=224)
@@ -72,7 +72,7 @@ training_flag = tf.placeholder(tf.bool)
 # Placeholder para las imagenes.
 x = tf.placeholder(tf.float32, shape=[None, height, width, channels], name='input')
 batch_images = tf.reverse(x, axis=[-1]) #opencv rgb -bgr
-label = tf.placeholder(tf.float32, shape=[None, height, width, n_classes], name='output')
+label = tf.placeholder(tf.float32, shape=[None, height, width, n_classes + 1 ], name='output')
 mask_label = tf.placeholder(tf.float32, shape=[None, height, width, n_classes], name='mask')
 # Placeholders para las clases (vector de salida que seran valores de 0-1 por cada clase)
 
@@ -80,7 +80,7 @@ mask_label = tf.placeholder(tf.float32, shape=[None, height, width, n_classes], 
 learning_rate = tf.placeholder(tf.float32, name='learning_rate')
  
 # Network
-output = Network.small(input_x=x, n_classes=n_classes, width=width, height=height, channels=channels, training=training_flag)
+output = Network.nasnet(input_x=x, n_classes=n_classes, width=width, height=height, channels=channels, training=training_flag)
 
 
 shape_output = output.get_shape()
@@ -90,23 +90,30 @@ print(shape_output)
 
 predictions = tf.reshape(output, [-1, shape_output[1]* shape_output[2] , shape_output[3]]) # tf.reshape(output, [-1])
 labels = tf.reshape(label, [-1, label_shape[1]* label_shape[2] , label_shape[3]]) # tf.reshape(output, [-1])
-mask_labels = tf.reshape(mask_label, [-1, label_shape[1]* label_shape[2] , label_shape[3]]) # tf.reshape(output, [-1])
+mask_labels = tf.reshape(mask_label, [-1, label_shape[1]* label_shape[2] , label_shape[3]-1]) # tf.reshape(output, [-1])
 
 # calculate the loss [cross entropy]
 #Clip output (softmax) for -inf values and calculate the log
 #clipped_output =  tf.log(tf.clip_by_value(tf.nn.softmax(predictions), 1e-20, 1e+20))
 log_softmax =  tf.nn.log_softmax(predictions)
 # Compare to the label (loss)
+labels_ignore = labels[:,:,n_classes]
+labels = labels[:,:,:n_classes]
 softmax_loss = labels*log_softmax
 # mask the loss
-cost_masked = tf.reduce_mean(softmax_loss*mask_labels, axis=1)
+cost_masked = tf.reduce_mean(softmax_loss, axis=1)
+#cost_masked = tf.reduce_mean(softmax_loss*mask_labels, axis=1)
 # Get hte median frequency weights of the labels
 weights = loader.median_frequency_exp()
 # Apply the tweights to the loss and multiply for the number of classes (you are applying the mean)
 cost_with_weights = tf.reduce_sum(cost_masked*weights, axis=1) 
 # For normalizing the loss accoding to the number of pixels calculated, multiply for the percentage of  non mask pixels (valuable pixels)
-mean_masking = tf.reduce_mean(mask_labels)
-cost = -tf.reduce_mean(cost_with_weights, axis=0) / mean_masking
+mean_masking = tf.reduce_mean(labels_ignore)
+cost = -tf.reduce_mean(cost_with_weights, axis=0) / (1 - mean_masking)
+
+
+
+
 
 
 
@@ -135,14 +142,22 @@ mean_accuracy = tf.reduce_mean(accuracy_per_class_sum/labels_sum)
 '''
 
 # Calculate the accuracy
-correct_prediction = tf.equal(tf.argmax(predictions, 2), tf.argmax(labels, 2))
 
-correct_prediction_masked=tf.cast(correct_prediction, tf.float32)*tf.reduce_mean(mask_labels, axis=2)
-sum_correc_masked=tf.reduce_sum(correct_prediction_masked)
-sum_mask=tf.reduce_sum(tf.reduce_mean(mask_labels, axis=2))
-accuracy = sum_correc_masked/sum_mask
 
-#accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+labels = tf.argmax(labels, 2)
+predictions = tf.argmax(predictions, 2)
+
+labels = tf.reshape(labels,[tf.shape(labels)[0] * labels.get_shape()[1].value])
+predictions = tf.reshape(predictions,[tf.shape(predictions)[0] * predictions.get_shape()[1].value])
+print(tf.where(tf.less_equal(labels, n_classes - 1)).get_shape())
+
+indices = tf.squeeze(tf.where(tf.less_equal(labels, n_classes - 1))) # ignore all labels >= num_classes 
+labels = tf.cast(tf.gather(labels, indices), tf.int64)
+predictions = tf.gather(predictions, indices)
+
+
+correct_prediction = tf.cast(tf.equal(labels, predictions), tf.float32)
+accuracy = tf.reduce_mean(correct_prediction)
 
 #hacer media por clase acc
  
@@ -182,7 +197,7 @@ print("Total parameters of the net: " + str(total_parameters)+ " == " + str(tota
 
  
 # Times to show information of batch traiingn and test
-times_show_per_epoch = 1
+times_show_per_epoch = 5
 saver = tf.train.Saver(tf.global_variables())
 
 if not os.path.exists('./model/best'):

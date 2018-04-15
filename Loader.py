@@ -110,7 +110,7 @@ class Loader:
 			if self.dim == 1:
 				img = cv2.imread(random_images[index], 0)
 			else:
-				img = cv2.imread(random_images[index], 0)
+				img = cv2.imread(random_images[index])
 
 			label = cv2.imread(random_labels[index],0)
 
@@ -147,11 +147,11 @@ class Loader:
 					macara=macara.reshape(macara.shape[1:])
 
 
-			if self.ignore_label and not validation:
+			#if self.ignore_label and not validation:
 				#ignore_label to value 0-n_classes and add it to mask
-				mask_ignore = label == self.ignore_label
-				macara[mask_ignore] = 0
-				label[mask_ignore] = 0
+			mask_ignore = label == self.ignore_label
+			macara[mask_ignore] = 0
+			label[mask_ignore] = self.n_classes
 
 			if self.dim == 1:
 				img = np.reshape(img, (img.shape[0], img.shape[1], self.dim))
@@ -165,13 +165,11 @@ class Loader:
 		a, b, c =y.shape
 		y = y.reshape((a*b*c))
 
-		if self.ignore_label and validation:
-			y = to_categorical(y, num_classes=self.n_classes+1)
-		else:
-			y = to_categorical(y, num_classes=self.n_classes)
+
+		y = to_categorical(y, num_classes=self.n_classes+1)
+		y = y.reshape((a,b,c,self.n_classes+1)).astype(np.uint8)
 
 
-		y = y.reshape((a,b,c,self.n_classes)).astype(np.uint8)
 		x = x.astype(np.float32) / 255.0 - 0.5
 		return x, y, mask_expanded
 
@@ -228,7 +226,7 @@ class Loader:
 		elif self.problemType == 'GAN':
 			return self._get_batch_GAN(size=size, train=train, augmenter=augmenter)
 		elif self.problemType == 'segmentation':
-			return self._get_batch_segmentation(size=size, train=train, augmenter=augmenter, index=index, validation=False)
+			return self._get_batch_segmentation(size=size, train=train, augmenter=augmenter, index=index, validation=validation)
 		elif self.problemType == 'DVS':
 			return self._get_batch_DVS(size=size, train=train)
 

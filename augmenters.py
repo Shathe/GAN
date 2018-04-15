@@ -5,7 +5,7 @@ import random
 
 
 
-def get_augmenter(name, c_val=0, vertical_flip=True):
+def get_augmenter(name, c_val=255, vertical_flip=True):
     if name:
         alot = lambda aug: iaa.Sometimes(0.75, aug)
         alw = lambda aug: iaa.Sometimes(1, aug)

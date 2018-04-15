@@ -27,10 +27,10 @@ parser.add_argument("--dimensions", help="Temporal dimensions to get from each s
 parser.add_argument("--augmentation", help="Image augmentation", default=1)
 parser.add_argument("--init_lr", help="Initial learning rate", default=5e-4)
 parser.add_argument("--min_lr", help="Initial learning rate", default=1e-7)
-parser.add_argument("--init_batch_size", help="batch_size", default=6)
-parser.add_argument("--max_batch_size", help="batch_size", default=6)
-parser.add_argument("--n_classes", help="number of classes to classify", default=2)
-parser.add_argument("--ignore_label", help="class to ignore", default=255)
+parser.add_argument("--init_batch_size", help="batch_size", default=4)
+parser.add_argument("--max_batch_size", help="batch_size", default=4)
+parser.add_argument("--n_classes", help="number of classes to classify", default=11)
+parser.add_argument("--ignore_label", help="class to ignore", default=11)
 parser.add_argument("--epochs", help="Number of epochs to train", default=400)
 parser.add_argument("--width", help="width", default=224)
 parser.add_argument("--height", help="height", default=224)
@@ -64,7 +64,7 @@ training_flag = tf.placeholder(tf.bool)
 
 # Placeholder para las imagenes.
 x = tf.placeholder(tf.float32, shape=[None, height, width, channels], name='input')
-label = tf.placeholder(tf.float32, shape=[None, height, width, n_classes], name='output')
+label = tf.placeholder(tf.float32, shape=[None, height, width, n_classes+1], name='output')
 mask_label = tf.placeholder(tf.float32, shape=[None, height, width, n_classes], name='mask')
 # Placeholders para las clases (vector de salida que seran valores de 0-1 por cada clase)
 
@@ -90,28 +90,33 @@ label_shape = label.get_shape()
 predictions = tf.reshape(output, [-1, shape_output[1]* shape_output[2] , shape_output[3]]) # tf.reshape(output, [-1])
 labels = tf.reshape(label, [-1, label_shape[1]* label_shape[2] , label_shape[3]]) # tf.reshape(output, [-1])
 output_image = tf.expand_dims(tf.cast(tf.argmax(output, 3), tf.float32), -1)
-mask_labels = tf.reshape(mask_label, [-1, label_shape[1]* label_shape[2] , label_shape[3]]) # tf.reshape(output, [-1])
+mask_labels = tf.reshape(mask_label, [-1, label_shape[1]* label_shape[2] , label_shape[3] - 1]) # tf.reshape(output, [-1])
+
 
 
  
 # Metrics
 
-correct_prediction = tf.equal(tf.argmax(labels, 2), tf.argmax(predictions, 2))
-accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-correct_prediction = tf.equal(tf.argmax(predictions, 2), tf.argmax(labels, 2))
 
-correct_prediction_masked=tf.cast(correct_prediction, tf.float32)*tf.reduce_mean(mask_labels, axis=2)
-sum_correc_masked=tf.reduce_sum(correct_prediction_masked)
-sum_mask=tf.reduce_sum(tf.reduce_mean(mask_labels, axis=2))
-accuracy = sum_correc_masked/sum_mask
+labels = tf.argmax(labels, 2)
+predictions = tf.argmax(predictions, 2)
 
-# para metricas, que haya 20 clases
-if 'voc' in args.dataset.lower():
-	n_classes = n_classes - 1
+labels = tf.reshape(labels,[tf.shape(labels)[0] * labels.get_shape()[1].value])
+predictions = tf.reshape(predictions,[tf.shape(predictions)[0] * predictions.get_shape()[1].value])
+print(tf.where(tf.less_equal(labels, n_classes - 1)).get_shape())
 
-acc, acc_op  = tf.metrics.accuracy(tf.argmax(labels, 2),tf.argmax(predictions, 2))
-mean_acc, mean_acc_op = tf.metrics.mean_per_class_accuracy(tf.argmax(labels, 2), tf.argmax(predictions, 2), n_classes)
-miou, miou_op = tf.metrics.mean_iou(tf.argmax(labels, 2), tf.argmax(predictions, 2), n_classes)
+indices = tf.squeeze(tf.where(tf.less_equal(labels, n_classes - 1))) # ignore all labels >= num_classes 
+labels = tf.cast(tf.gather(labels, indices), tf.int32)
+predictions = tf.gather(predictions, indices)
+# esto tabienen la loss?
+
+
+
+
+
+acc, acc_op  = tf.metrics.accuracy(labels, predictions)
+mean_acc, mean_acc_op = tf.metrics.mean_per_class_accuracy(labels, predictions, n_classes)
+miou, miou_op = tf.metrics.mean_iou(labels, predictions, n_classes)
 
 # args.dataset
  
@@ -140,11 +145,8 @@ with tf.Session() as sess:
 			training_flag: False,
 			mask_label: mask_test
 		}
-		accuracy_rates, acc_update, acc_total, miou_update, miou_total,mean_acc_total, mean_acc_update = sess.run([accuracy, acc_op, acc, miou_op, miou, mean_acc, mean_acc_op], feed_dict=test_feed_dict)
-		suma_acc = suma_acc + accuracy_rates*max_batch_size
+		acc_update, acc_total, miou_update, miou_total,mean_acc_total, mean_acc_update = sess.run([acc_op, acc, miou_op, miou, mean_acc, mean_acc_op], feed_dict=test_feed_dict)
 
-
-	print("Masked accuracy: " + str(suma_acc/testing_samples))
 	print("Accuracy: " + str(acc_update))
 	print("miou: " + str(miou_total))
 	print("mean accuracy: " + str(mean_acc_total))
