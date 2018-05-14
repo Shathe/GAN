@@ -31,7 +31,7 @@ class Loader:
 		self.ignore_label = ignore_label # label to ignore
 		self.freq = np.zeros(n_classes) # vector for calculating the class frequency
 		self.index_train = 0 #indexes for iterating while training
-		self.index_test = 0#indexes for iterating while testing
+		self.index_test = 0 #indexes for iterating while testing
 		self.median_frequency_soft = median_frequency
 		if ignore_label and ignore_label < n_classes:
 
@@ -129,13 +129,18 @@ class Loader:
 		
 		print('Dataset contains '+ str(self.n_classes) +' classes')
 
-	def _from_binarymask_to_weighted_mask(self, labels, masks):
 
+	# Returns a weighted mask from a binary mask
+	def _from_binarymask_to_weighted_mask(self, labels, masks):
+		'''
+		the input [mask] is an array of N binary masks 0/1 of size [N, H, W ] where the 0 are pixeles to ignore from the labels [N, H, W ]
+		and 1's means pixels to take into account.
+		This function transofrm those 1's into a weight using the median frequency 
+		'''
 		if self.median_frequency_soft==0:
 			return masks
 
 		else:
-
 			weights = self.median_freq
 			for i in xrange(masks.shape[0]):
 				# for every mask of the batch
@@ -148,21 +153,19 @@ class Loader:
 
 				for label_i in xrange(self.n_classes):
 					mask_image[label_image == label_i] = weights[label_i]
-					unique, counts = np.unique(mask_image, return_counts=True)
-
+					# unique, counts = np.unique(mask_image, return_counts=True)
 
 				mask_image = np.reshape(mask_image, (dim_1, dim_2))
-
+				masks[i,:,:] = mask_image
 
 			return masks
 
 	# Returns a random batch of segmentation images: X, Y, mask
 	def _get_batch_segmentation(self, size=32, train=True, augmenter=None):
-
+		# init numpy arrays 
 		x = np.zeros([size, self.height, self.width, self.dim], dtype=np.float32)
 		y = np.zeros([size, self.height, self.width], dtype=np.uint8)
 		mask = np.ones([size, self.height, self.width], dtype=np.float32)
-
 
 
 		if train:
@@ -195,7 +198,7 @@ class Loader:
 				img = cv2.imread(random_images[index])
 
 			label = cv2.imread(random_labels[index],0)
-
+			# check if error
 			if img is None or label is  None:
 				print(random_images[index])
 				print(random_labels[index])
@@ -206,7 +209,7 @@ class Loader:
 			if label.shape[1] != self.width or label.shape[0] != self.height:
 				label = cv2.resize(label, (self.width, self.height), interpolation = cv2.INTER_NEAREST)
 
-			macara = mask[index, :, :] 
+			mask_image = mask[index, :, :] 
 			if train and augmenter:
 
 				seq_image_contrast, seq_image_translation, seq_label, seq_mask = get_augmenter(name=augmenter, c_val=self.ignore_label)
@@ -222,7 +225,6 @@ class Loader:
 				
 				# Reshapes for the AUGMENTER framework
 				# the loops are due to the external library failures
-				
 				img=img.reshape(sum(((1,),img.shape),()))
 				img = seq_image_translation.augment_images(img)  
 				img=img.reshape(img.shape[1:])
@@ -231,15 +233,15 @@ class Loader:
 				label = seq_label.augment_images(label)
 				label=label.reshape(label.shape[1:])
 
-				macara=macara.reshape(sum(((1,),macara.shape),()))
-				macara = seq_mask.augment_images(macara)
-				macara=macara.reshape(macara.shape[1:])
+				mask_image=mask_image.reshape(sum(((1,),mask_image.shape),()))
+				mask_image = seq_mask.augment_images(mask_image)
+				mask_image=mask_image.reshape(mask_image.shape[1:])
 
-			# modify the mask and the labels
+			# modify the mask and the labels. Mask
 
 			mask_ignore = label == self.ignore_label
-			macara[mask_ignore] = 0
-			label[mask_ignore] = self.n_classes
+			mask_image[mask_ignore] = 0 # The ignore pixels will have a value o 0 in the mask
+			label[mask_ignore] = self.n_classes # The ignore label will be n_classes
 
 			if self.dim == 1:
 				img = np.reshape(img, (img.shape[0], img.shape[1], self.dim))
@@ -247,8 +249,9 @@ class Loader:
 
 			x[index, :, :, :] = img
 			y[index, :, :] = label
-			mask[index, :, :] = macara
+			mask[index, :, :] = mask_image
 
+		# Apply weights to the mask 
 		mask = self._from_binarymask_to_weighted_mask(y, mask)
 
 		# the labeling to categorical (if 5 classes and value is 2:  2 -> [0,0,1,0,0])
@@ -341,7 +344,7 @@ class Loader:
 			return self._get_batch_segmentation(size=size, train=train, augmenter=augmenter)
 
 	# Returns the median frequency for class imbalance. It can be soften with the soft value (<=1)
-	def median_frequency_exp(self, soft=0.65):
+	def median_frequency_exp(self, soft=1):
 
 		if self.problemType == 'classification':
 			quantity = []
@@ -383,15 +386,8 @@ class Loader:
 
 		
 if __name__ == "__main__":
-	'''
-	loader = Loader('./dataset_rgb')
-	print(loader.classes)
-	x, y =loader.get_batch(size=2)
-	print(y)
-	'''
-	#	
 
-	loader = Loader('/media/msrobot/discoGordo/city', problemType = 'segmentation', ignore_label=255, n_classes=19,width=512, height=256, median_frequency=1)
+	loader = Loader('/media/msrobot/discoGordo/city', problemType = 'segmentation', ignore_label=255, n_classes=19,width=512, height=256, median_frequency=0)
 	# print(loader.median_frequency_exp())
 	x, y, mask =loader.get_batch(size=10, augmenter='segmentation')
 

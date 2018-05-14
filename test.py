@@ -87,7 +87,6 @@ predictions = tf.argmax(predictions, 2)
 labels = tf.reshape(labels,[tf.shape(labels)[0] * tf.shape(labels)[1]])
 predictions = tf.reshape(predictions,[tf.shape(predictions)[0] * tf.shape(predictions)[1]])
 
-print(tf.where(tf.less_equal(labels, n_classes - 1)).get_shape())
 
 indices = tf.squeeze(tf.where(tf.less_equal(labels, n_classes - 1))) # ignore all labels >= num_classes 
 labels = tf.cast(tf.gather(labels, indices), tf.int32)
@@ -111,20 +110,20 @@ with tf.Session() as sess:
 		saver.restore(sess, ckpt_best.model_checkpoint_path)
 
 	# TEST
-	count = 0
-	suma_acc = 0
+
 	for i in xrange(0, testing_samples, max_batch_size):
 		if i + max_batch_size > testing_samples:
 			max_batch_size = testing_samples - i
 		x_test, y_test, mask_test = loader.get_batch(size=max_batch_size, train=False)
-		count = count + 1
 		test_feed_dict = {
 			x: x_test,
 			label: y_test,
 			#mask_label: mask_test,
 			training_flag: False
 		}
-		image_salida, matrix ,acc_update, acc_total, miou_update, miou_total,mean_acc_total, mean_acc_update = sess.run([output, conf_mat, acc_op, acc, miou_op, miou, mean_acc, mean_acc_op], feed_dict=test_feed_dict)
+		image_salida, matrix ,acc_update,  miou_update,  mean_acc_update = sess.run([output, conf_mat, acc_op,  miou_op,  mean_acc_op], feed_dict=test_feed_dict)
+		acc_total, miou_total,mean_acc_total = sess.run([acc,  miou, mean_acc], feed_dict=test_feed_dict)
+
 
 		if  i == 0:
 			confusion_matrix_total = matrix
@@ -147,17 +146,5 @@ with tf.Session() as sess:
 	print(confusion_matrix_total)
 
 	x_test, y_test, mask_test = loader.get_batch(size=1, train=False)
-
-	import time
-	first = time.time()
-	predictions = sess.run(output_image, feed_dict={x: x_test, training_flag : False})
-	second = time.time()
-	print(str(second - first) + " seconds to load")
-
-
-	first = time.time()
-	output_image.eval(feed_dict={x: x_test, training_flag : False})
-	second = time.time()
-	print(str(second - first) + " seconds to load")
 
 # mejor complex sin regularizer y droput: 0.80/0.77, 0.44, 0.66
