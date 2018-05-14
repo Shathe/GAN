@@ -36,6 +36,32 @@ def get_augmenter(name, c_val=255, vertical_flip=True):
                     # mode=ia.ALL  # use any of scikit-image's warping modes (see 2nd image from the top for examples)
                 ))])
             return seq_rgb
+
+
+        if 'coral' in name:
+            seq_rgb = iaa.Sequential([
+
+                iaa.Fliplr(0.50),  # horizontally flip 50% of the images
+                iaa.Flipud(0.50),  # vertically flip 50% of the images
+                sometimes(iaa.Add((-30, 30))),
+                sometimes(iaa.Multiply((0.80, 1.20), per_channel=False)),
+                sometimes(iaa.GaussianBlur(sigma=(0, 40))),
+                sometimes(iaa.ContrastNormalization((0.75, 1.35))),
+                alot(iaa.Affine(
+                    scale={"x": (0.7, 1.3), "y": (0.7, 1.3)},
+                    # scale images to 80-120% of their size, individually per axis
+                    translate_percent={"x": (-0.2, 0.2), "y": (-0.2, 0.2)},
+                    # translate by -20 to +20 percent (per axis)
+                    rotate=(-45, 45),  # rotate by -45 to +45 degrees
+                    order=1,  #bilinear interpolation (fast)
+                    cval=0,
+                    mode="reflect" # `edge`, `wrap`, `reflect` or `symmetric`
+                    # cval=(0, 255),  # if mode is constant, use a cval between 0 and 255
+                    # mode=ia.ALL  # use any of scikit-image's warping modes (see 2nd image from the top for examples)
+                ))])
+            return seq_rgb
+
+
         elif 'segmentation' in name:
             #create one per image. give iamge, label and mask to the pipeling
 
@@ -51,14 +77,14 @@ def get_augmenter(name, c_val=255, vertical_flip=True):
             else:
                 value_flip2=0
 
-            value_add = random.uniform(-15, 15)
-            value_Multiply = random.uniform(0.9, 1.1)
+            value_add = random.uniform(-20, 20)
+            value_Multiply = random.uniform(0.90, 1.20)
             value_GaussianBlur = random.uniform(0.0,0.40)
-            ContrastNormalization = random.uniform(0.79, 1.35)
-            scale = random.uniform(0.8, 1.3)
-            value_x2 = random.uniform(-0.30, 0.30)
-            value_y2 = random.uniform(-0.20, 0.20)
-            val_rotate = random.uniform(-13,13)
+            ContrastNormalization = random.uniform(0.82, 1.35)
+            scale = random.uniform(0.85, 1.30)
+            value_x2 = random.uniform(-0.18, 0.18)
+            value_y2 = random.uniform(-0.12, 0.12)
+            val_rotate = random.uniform(-9,9)
 
             '''
             sometimes(iaa.Add((value_add, value_add))),
@@ -81,7 +107,7 @@ def get_augmenter(name, c_val=255, vertical_flip=True):
                     rotate=(val_rotate),  # rotate by -45 to +45 degrees
                     order=1,  #bilinear interpolation (fast)
                     cval=c_val,
-                    mode="constant",
+                    mode="reflect",
 
                     # `edge`, `wrap`, `reflect` or `symmetric`
                     # cval=c_val,  # if mode is constant, use a cval between 0 and 255
@@ -90,8 +116,8 @@ def get_augmenter(name, c_val=255, vertical_flip=True):
                 )])
             
             seq_image2 = iaa.Sequential([
-                #sometimes(iaa.Add((value_add, value_add))),
-                #sometimes(iaa.Multiply((value_Multiply, value_Multiply), per_channel=False)),
+                sometimes(iaa.Add((value_add, value_add))),
+                sometimes(iaa.Multiply((value_Multiply, value_Multiply), per_channel=False)),
                 sometimes(iaa.GaussianBlur(sigma=(value_GaussianBlur, value_GaussianBlur))),
                 sometimes(iaa.ContrastNormalization((ContrastNormalization, ContrastNormalization)))])
             

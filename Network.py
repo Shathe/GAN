@@ -1,4 +1,284 @@
+from __future__ import division
 import tensorflow as tf
+import os,time,cv2
+import tensorflow.contrib.slim as slim
+import numpy as np
+
+# USEFUL LAYERS
+fc = tf.contrib.layers.fully_connected
+conv = tf.contrib.layers.conv2d
+# convsep = tf.contrib.layers.separable_conv2d
+deconv = tf.contrib.layers.conv2d_transpose
+relu = tf.nn.relu
+maxpool = tf.contrib.layers.max_pool2d
+dropout_layer = tf.layers.dropout
+batchnorm = tf.contrib.layers.batch_norm
+winit = tf.contrib.layers.xavier_initializer()
+repeat = tf.contrib.layers.repeat
+arg_scope = tf.contrib.framework.arg_scope
+l2_regularizer = tf.contrib.layers.l2_regularizer
+
+def module2(inputs, filters, name, training=True):
+
+    with tf.variable_scope('module_' + name):
+        filters_4 = int(filters/4)
+
+        x_inputs = tf.layers.separable_conv2d(inputs, int(filters/4), (1,1), padding='same', 
+            depthwise_initializer=winit, pointwise_initializer=winit,  activation=tf.nn.selu, dilation_rate=(1,1))
+
+
+        x1 = tf.layers.separable_conv2d(x_inputs, int(filters_4), (3,3), padding='same', 
+            depthwise_initializer=winit, pointwise_initializer=winit,  activation=tf.nn.selu, dilation_rate=(1,1))
+
+        x1 = tf.add(x1, x_inputs)
+
+        x2 = tf.layers.separable_conv2d(x1, int(filters_4), (3,3), padding='same', 
+            depthwise_initializer=winit, pointwise_initializer=winit,  activation=tf.nn.selu, dilation_rate=(2, 2))
+        x2 = tf.add(x1, x2)
+        x3 = tf.layers.separable_conv2d(x2, int(filters_4), (3,3), padding='same', 
+            depthwise_initializer=winit, pointwise_initializer=winit,  activation=tf.nn.selu, dilation_rate=(4, 4))
+        x3 = tf.add(x2, x3)
+        x4 = tf.layers.separable_conv2d(x3, int(filters_4), (3,3), padding='same', 
+            depthwise_initializer=winit, pointwise_initializer=winit,  activation=tf.nn.selu, dilation_rate=(8, 8))
+
+
+        x = tf.concat((x1, x2, x3, x4), axis=3)
+
+        # x = tf.add(x, x2)
+        x = tf.layers.dropout(x, rate=0.30, training=training)
+
+
+        x = tf.add(x, inputs[:,:,:,:filters])
+
+
+        return x
+
+def module3(inputs, filters, name, training=True):
+
+
+    with tf.variable_scope('module_' + name):
+
+
+
+
+        x = tf.layers.separable_conv2d(inputs, int(filters), (3,3), padding='same', 
+            depthwise_initializer=winit, pointwise_initializer=winit,  activation=tf.nn.selu, dilation_rate=(2, 2))
+
+        x2 = tf.layers.separable_conv2d(tf.add(x, inputs), int(filters), (3,3), padding='same', 
+            depthwise_initializer=winit, pointwise_initializer=winit,  activation=tf.nn.selu, dilation_rate=(1, 1))
+
+
+        x = tf.layers.dropout(x2, rate=0.30, training=training)
+
+
+        x = tf.add(x, inputs[:,:,:,:filters])
+
+
+        return x
+def module(inputs, filters, name, dilation_rate=(1, 1), training=True):
+
+
+    with tf.variable_scope('module_' + name):
+
+
+
+
+        x = tf.layers.separable_conv2d(inputs, int(filters), (1,3), padding='same', 
+            depthwise_initializer=winit, pointwise_initializer=winit,  activation=tf.nn.selu, dilation_rate=(1,1))
+
+        x2 = tf.layers.separable_conv2d(x, int(filters), (3,1), padding='same', 
+            depthwise_initializer=winit, pointwise_initializer=winit,  activation=tf.nn.selu, dilation_rate=(1,1))
+
+        x = tf.layers.separable_conv2d(x2, int(filters), (3,1), padding='same', 
+            depthwise_initializer=winit, pointwise_initializer=winit,  activation=tf.nn.selu, dilation_rate=dilation_rate)
+
+        x = tf.layers.separable_conv2d(x, int(filters), (1,3), padding='same', 
+            depthwise_initializer=winit, pointwise_initializer=winit,  activation=tf.nn.selu, dilation_rate=dilation_rate)
+
+        x = tf.add(x, x2)/2
+        x = tf.layers.dropout(x, rate=0.30, training=training)
+
+
+        x = tf.add(x, inputs[:,:,:,:filters])/2
+
+
+        return x
+
+
+def downsampling(inputs, filters, name, strides=(2, 2), kernels=(3, 3), training=True):
+    with tf.variable_scope('downsampling_' + name):
+        x = tf.layers.separable_conv2d(inputs, filters, kernels, strides=strides, padding='same', 
+            depthwise_initializer=winit, pointwise_initializer=winit,  activation=tf.nn.selu)
+        x2 = tf.layers.average_pooling2d(inputs, pool_size=(2, 2), strides=(2, 2))
+        x = tf.concat((x, x2), axis=3)
+
+        return x
+
+
+def downsampling2(inputs, filters, name, strides=(2, 2), kernels=(3, 3), training=True):
+    with tf.variable_scope('downsampling_' + name):
+        x = tf.layers.separable_conv2d(inputs, filters, kernels, strides=strides, padding='same', 
+            depthwise_initializer=winit, pointwise_initializer=winit,  activation=tf.nn.selu)
+
+        return x
+
+def upsampling(inputs, name, size_multiplier=2, training=True, last=False): 
+     with tf.variable_scope('upsampling_' + name):
+        x = tf.image.resize_bilinear(inputs, [inputs.get_shape()[1].value*size_multiplier, inputs.get_shape()[2].value*size_multiplier], align_corners=True)
+
+
+        return x
+
+def upsampling2(inputs, filters, name, strides=(2, 2), kernels=(3, 3), training=True, last=False): 
+     with tf.variable_scope('upsampling_' + name):
+
+        activation = tf.nn.selu
+        if last:
+            activation=None
+
+        x = tf.layers.conv2d_transpose(inputs, filters, kernels, strides=strides, padding='same', kernel_initializer=winit,  activation=activation) # there is also dilation_rate!
+
+        return x
+
+
+def MiniNet2(input_x=None, n_classes=20, training=True):
+    d1 = downsampling(input_x, 12, 'd1', strides=(2, 2), kernels=(3, 3), training=training)
+    d2 = downsampling(d1, 24, 'd2', strides=(2, 2), kernels=(3, 3), training=training)
+    m1 = module(d2, 24, 'm2',dilation_rate=(1, 1), training=training)
+    d3 = downsampling(m1, 48, 'd2_1', strides=(2, 2), kernels=(3, 3), training=training)
+    m2 = module(d3, 48, 'm2m2',  dilation_rate=(1, 1), training=training)
+    m3 = module(m2, 48, 'm2mm22',  dilation_rate=(1, 1), training=training)
+
+    m3_ = module(m3, 48, 'm3_',  dilation_rate=(2, 2), training=training)
+    m4_ = module(m3_, 48, 'm4_',  dilation_rate=(6, 6), training=training)
+    m5_ = module(m4_, 48, 'm5_',  dilation_rate=(12, 12), training=training)
+
+    d4 = downsampling(m5_, 96, 'd3', strides=(2, 2), kernels=(3, 3), training=training)
+    m4 = module(d4, 96, 'm3',  dilation_rate=(4, 4), training=training)
+    m5 = module(m4, 96, 'm4',  dilation_rate=(8, 8), training=training)
+    m6 = module(m5, 96, 'm5',  dilation_rate=(2, 2), training=training)
+    m7 = module(tf.add(m6, m4), 96, 'm6',  dilation_rate=(6, 6), training=training)
+    up1 = upsampling2(tf.add(m7, m5)/2,48, 'up1', training=training)
+
+    m8 = module(tf.add(up1, m3_)/2, 48, 'm7',  dilation_rate=(2, 2), training=training)
+    m9 = module(tf.add(m8, m4_)/2, 48, 'm8',  dilation_rate=(4, 4), training=training)
+    m10 = module(tf.add(m9, m5_)/2, 48, 'm8s',  dilation_rate=(8, 8), training=training)
+
+
+    up2 = upsampling2(m10,24, 'up2', training=training)
+    m12 = module(tf.add(up2, m1), 24, 'm10up2', training=training)
+    up3 = upsampling2(m12,15, 'up22', training=training)
+    m13 = module(tf.add(up3, d1), 15, 'm10', training=training)
+    return   upsampling2(m13,n_classes, 'up3', training=training, last=True)
+
+
+def MiniNet(input_x=None, n_classes=20, training=True):
+    d1 = downsampling2(input_x, 12, 'd1', strides=(2, 2), kernels=(3, 3), training=training)
+    d2 = downsampling2(d1, 24, 'd2', strides=(2, 2), kernels=(3, 3), training=training)
+    d3 = downsampling2(d2, 48, 'd2_1', strides=(2, 2), kernels=(3, 3), training=training)
+    d4 = downsampling2(d3, 96, 'd3', strides=(2, 2), kernels=(3, 3), training=training)
+    m4 = module(d4, 96, 'm3',  dilation_rate=(4, 4), training=training)
+    m5 = module(m4, 96, 'm4',  dilation_rate=(8, 8), training=training)
+    m6 = module(m5, 96, 'm5',  dilation_rate=(2, 2), training=training)
+    m7 = module(tf.add(m6, m4), 96, 'm6',  dilation_rate=(6, 6), training=training)
+    up1 = upsampling2(tf.add(m7, m5),48, 'up1', training=training)
+
+    d5 = downsampling2(d4, 192, 'd5', strides=(2, 2), kernels=(3, 3), training=training)
+    d5 = module(d5, 192, 'm7d5',  dilation_rate=(2, 2), training=training)
+    d6 = downsampling2(d5, 386, 'd6', strides=(2, 2), kernels=(3, 3), training=training)
+    d6 = module(d6, 386, 'm7d6',  dilation_rate=(1, 1), training=training)
+    d6 = module(d6, 386, 'm7d6d6',  dilation_rate=(1, 1), training=training)
+    up_1 = upsampling2(d6,192, '_up11', training=training)
+    up_1 = module(up_1, 192, 'm7d5up_1',  dilation_rate=(2, 2), training=training)
+    up_2 = upsampling2(up_1,96, '_up22', training=training)
+    up_3 = upsampling2(up_2,48, '_up33', training=training)
+
+
+    up_concat = tf.concat((up_3, up1), axis=3)
+
+    m9 = module(up_concat, 48, 'm8',  dilation_rate=(2, 2), training=training)
+
+
+    up2 = upsampling2(tf.concat((m9, d3), axis=3),32, 'up2', training=training)
+    up3 = upsampling2(tf.concat((up2, d2), axis=3),16, 'up22', training=training)
+
+    out = upsampling2(tf.concat((up3, d1), axis=3),n_classes, 'up3', training=training, last=True)
+    return   out
+
+
+
+    '''
+
+    up1 = upsampling(m6_add, 'up1', size_multiplier=2, training=training)
+    m9 = module(up1, 42, 'm9', kernels=(3, 3), training=training)
+    m9_add = tf.add(m9, m2)
+    up2 = upsampling(m9_add, 'up2', size_multiplier=2, training=training)
+    up2_concat = tf.concat([up2, d1], axis=3)
+
+    last_layer = tf.layers.separable_conv2d(up2_concat, n_classes, (1, 1), padding='same',depthwise_initializer=winit, pointwise_initializer=winit)
+    return upsampling(last_layer, 'last_layer', size_multiplier=2)
+    '''
+
+
+
+def small(input_x=None, n_classes=20, weights=None, width=224, height=224, channels=3, training=True, start_filters = 24):
+
+
+    layer_index = 0
+
+    x1 = tf.layers.separable_conv2d(input_x, start_filters, (3, 3), strides=(2, 2), padding='same', depthwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(), 
+    pointwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),  activation=tf.nn.selu)#salida 112
+    x2 = tf.layers.separable_conv2d(x1, start_filters*4, (3, 3), strides=(2, 2), padding='same', depthwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(), 
+    pointwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),  activation=tf.nn.selu)#salida 56
+    x3 = tf.layers.separable_conv2d(x2, start_filters*4, (3, 3), strides=(2, 2), padding='same', depthwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
+     pointwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),  activation=tf.nn.selu)#salida 28
+    x4 = tf.layers.separable_conv2d(x3, start_filters*8, (3, 3), strides=(1, 1), padding='same', depthwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
+     pointwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),  activation=tf.nn.selu)#salida 28
+    x5= tf.layers.separable_conv2d(x4, start_filters*8, (3, 3), strides=(2, 2), padding='same', depthwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
+     pointwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),  activation=tf.nn.selu) # 14 
+    x6 = tf.layers.separable_conv2d(x5, start_filters*16, (3, 3), strides=(1, 1), padding='same', depthwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
+     pointwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),  activation=tf.nn.selu) # 14 
+    x7 = tf.layers.separable_conv2d(x6, start_filters*16, (3, 3), strides=(2, 2), padding='same', depthwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
+     pointwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),  activation=tf.nn.selu) # 7 
+    x8 = tf.layers.separable_conv2d(x7, start_filters*32, (3, 3), strides=(1, 1), padding='same', depthwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
+     pointwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),  activation=tf.nn.selu) # 7 
+
+
+
+
+
+
+    #join residual connections
+    x8_res = tf.image.resize_bilinear(x8[:,:,:,:start_filters*8], [14, 14], align_corners=True)
+    x7_res = tf.image.resize_bilinear(x7[:,:,:,:start_filters*8], [14, 14], align_corners=True) 
+    x6_res = tf.image.resize_bilinear(x6[:,:,:,:start_filters*8], [14, 14], align_corners=True)
+    x5_res = tf.image.resize_bilinear(x5, [14, 14], align_corners=True)
+    x4_res = tf.image.resize_bilinear(x4, [14, 14], align_corners=True)
+
+    res_1 = tf.add(x8_res, x6_res)
+    res_2 = tf.add(x7_res, x5_res)
+    res_3 = tf.add(res_1, x4_res)
+    res = tf.add(res_3, res_2)
+
+    # up
+    res_14 = tf.layers.separable_conv2d(res, start_filters*8, (3, 3), strides=(1, 1), padding='same', depthwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
+     pointwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),  activation=tf.nn.selu) 
+
+    x2_up = tf.image.resize_bilinear(x8, [14, 14], align_corners=True)
+    x3_up = tf.layers.separable_conv2d(x2_up, start_filters*8, (3, 3), strides=(1, 1), padding='same', depthwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
+     pointwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),  activation=tf.nn.selu) 
+    x4_up = tf.add(x3_up, res_14)
+    x5_up = tf.image.resize_bilinear(x4_up, [56, 56], align_corners=True)
+    x6_up = tf.layers.separable_conv2d(x5_up, start_filters*8, (3, 3), strides=(1, 1), padding='same', depthwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
+     pointwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),  activation=tf.nn.selu) 
+    res_56 = tf.image.resize_bilinear(res_14, [56, 56], align_corners=True)
+    x7_up = tf.add(res_56, x6_up)
+    last_layer = conv2d_simple(x7_up, n_classes, 1, 1, padding='same', strides=(1, 1), training=training,layer_index=12, last=True)
+    output = tf.image.resize_bilinear(last_layer, [224, 224], align_corners=True)
+
+
+    return output
+
 
 
 def encoder_classif(input_x=None, n_classes=20, weights=None, width=224, height=224, channels=3, training=True):
@@ -36,55 +316,7 @@ def encoder_classif(input_x=None, n_classes=20, weights=None, width=224, height=
 
     return x
 
-def small(input_x=None, n_classes=20, weights=None, width=224, height=224, channels=3, training=True):
 
-
-    layer_index = 0
-
-    x1 = tf.layers.separable_conv2d(input_x, 32, (3, 3), strides=(2, 2), padding='same', depthwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(), 
-    pointwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),  activation=tf.nn.selu)#salida 112
-
-
-    x2 = tf.layers.separable_conv2d(x1, 64, (3, 3), strides=(2, 2), padding='same', depthwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(), 
-    pointwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),  activation=tf.nn.selu)#salida 56
-
-    x3 = tf.layers.separable_conv2d(x2, 96, (3, 3), strides=(2, 2), padding='same', depthwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
-     pointwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),  activation=tf.nn.selu)#salida 28
-
-    x4 = tf.layers.separable_conv2d(x3, 172, (3, 3), strides=(2, 2), padding='same', depthwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
-     pointwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),  activation=tf.nn.selu) # 14 
-
-    x5 = tf.layers.separable_conv2d(x4, 712, (3, 3), strides=(2, 2), padding='same', depthwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
-     pointwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),  activation=tf.nn.selu) # 7 
-
-    x6 = tf.layers.separable_conv2d(x5, 712, (3, 3), strides=(1, 1), padding='same', depthwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
-     pointwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),  activation=tf.nn.selu) # 7 
-
-
-    #x6 = tf.layers.separable_conv2d(x5, 256, (3, 3), strides=(2, 2), padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d(), activation=tf.nn.selu) # 7
-    # conv2d_simple(x, filters, num_row, num_col, padding='same', strides=(1, 1), dilation_rate=(1, 1), training=True, layer_index=0,last =False)
-    x1_ = tf.image.resize_bilinear(x6, [14, 14], align_corners=True)
-
-    x2_ = tf.layers.separable_conv2d(x1_, 172, (3, 3), strides=(1, 1), padding='same', depthwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
-     pointwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),  activation=tf.nn.selu) 
-    x2_ = tf.add(x4, x2_)
-
-
-    x3_ = tf.image.resize_bilinear(x2_, [56, 56], align_corners=True)
-    print(x2.shape)
-
-    print(x3_.shape)
-    #x4_ = tf.concat([x3_, x6], axis=3)
-    x4_ = tf.layers.separable_conv2d(x3_, 64, (3, 3), strides=(1, 1), padding='same', depthwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
-     pointwise_initializer=tf.contrib.layers.xavier_initializer_conv2d(),  activation=tf.nn.selu) 
-    x4_ = tf.add(x4_, x2)
-
-
-    x5_ = conv2d_simple(x4_, n_classes, 1, 1, padding='same', strides=(1, 1), training=training,layer_index=12, last=True)
-    output = tf.image.resize_bilinear(x5_, [224, 224], align_corners=True)
-
-
-    return output
 
 
 
@@ -938,3 +1170,276 @@ def conv2d_sep_bn(x, filters, num_row, num_col, padding='same', strides=(1, 1), 
         return x
 
 
+
+
+def preact_conv(inputs, n_filters, kernel_size=[3, 3], dropout_p=0.2):
+    """
+    Basic pre-activation layer for DenseNets
+    Apply successivly BatchNormalization, ReLU nonlinearity, Convolution and
+    Dropout (if dropout_p > 0) on the inputs
+    """
+    preact = tf.nn.relu(slim.batch_norm(inputs, fused=True))
+    conv = slim.conv2d(preact, n_filters, kernel_size, activation_fn=None, normalizer_fn=None)
+    if dropout_p != 0.0:
+      conv = slim.dropout(conv, keep_prob=(1.0-dropout_p))
+    return conv
+
+def DenseBlock(stack, n_layers, growth_rate, dropout_p, scope=None):
+  """
+  DenseBlock for DenseNet and FC-DenseNet
+  Arguments:
+    stack: input 4D tensor
+    n_layers: number of internal layers
+    growth_rate: number of feature maps per internal layer
+  Returns:
+    stack: current stack of feature maps (4D tensor)
+    new_features: 4D tensor containing only the new feature maps generated
+      in this block
+  """
+  with tf.name_scope(scope) as sc:
+    new_features = []
+    for j in range(n_layers):
+      # Compute new feature maps
+      layer = preact_conv(stack, growth_rate, dropout_p=dropout_p)
+      new_features.append(layer)
+      # Stack new layer
+      stack = tf.concat([stack, layer], axis=-1)
+    new_features = tf.concat(new_features, axis=-1)
+    return stack, new_features
+
+
+def TransitionDown(inputs, n_filters, dropout_p=0.2, scope=None):
+  """
+  Transition Down (TD) for FC-DenseNet
+  Apply 1x1 BN + ReLU + conv then 2x2 max pooling
+  """
+  with tf.name_scope(scope) as sc:
+    l = preact_conv(inputs, n_filters, kernel_size=[1, 1], dropout_p=dropout_p)
+    l = slim.pool(l, [2, 2], stride=[2, 2], pooling_type='MAX')
+    return l
+
+
+def TransitionUp(block_to_upsample, skip_connection, n_filters_keep, scope=None):
+  """
+  Transition Up for FC-DenseNet
+  Performs upsampling on block_to_upsample by a factor 2 and concatenates it with the skip_connection
+  """
+  with tf.name_scope(scope) as sc:
+    # Upsample
+    l = slim.conv2d_transpose(block_to_upsample, n_filters_keep, kernel_size=[3, 3], stride=[2, 2], activation_fn=None)
+    # Concatenate with skip connection
+    l = tf.concat([l, skip_connection], axis=-1)
+    return l
+
+def build_fc_densenet(inputs, num_classes, preset_model='FC-DenseNet56', n_filters_first_conv=48, n_pool=5, growth_rate=12, n_layers_per_block=4, dropout_p=0.2, scope=None):
+    """
+    Builds the FC-DenseNet model
+    Arguments:
+      inputs: the input tensor
+      preset_model: The model you want to use
+      n_classes: number of classes
+      n_filters_first_conv: number of filters for the first convolution applied
+      n_pool: number of pooling layers = number of transition down = number of transition up
+      growth_rate: number of new feature maps created by each layer in a dense block
+      n_layers_per_block: number of layers per block. Can be an int or a list of size 2 * n_pool + 1
+      dropout_p: dropout rate applied after each convolution (0. for not using)
+    Returns:
+      Fc-DenseNet model
+    """
+
+    if preset_model == 'FC-DenseNet56':
+      n_pool=5
+      growth_rate=12
+      n_layers_per_block=4
+    elif preset_model == 'FC-DenseNet67':
+      n_pool=5
+      growth_rate=16
+      n_layers_per_block=5
+    elif preset_model == 'FC-DenseNet103':
+      n_pool=5
+      growth_rate=16
+      n_layers_per_block=[4, 5, 7, 10, 12, 15, 12, 10, 7, 5, 4]
+    else:
+      raise ValueError("Unsupported FC-DenseNet model '%s'. This function only supports FC-DenseNet56, FC-DenseNet67, and FC-DenseNet103" % (preset_model)) 
+
+    if type(n_layers_per_block) == list:
+        assert (len(n_layers_per_block) == 2 * n_pool + 1)
+    elif type(n_layers_per_block) == int:
+        n_layers_per_block = [n_layers_per_block] * (2 * n_pool + 1)
+    else:
+        raise ValueError
+
+    with tf.variable_scope(scope, preset_model, [inputs]) as sc:
+
+      #####################
+      # First Convolution #
+      #####################
+      # We perform a first convolution.
+      stack = slim.conv2d(inputs, n_filters_first_conv, [3, 3], scope='first_conv', activation_fn=None)
+
+      n_filters = n_filters_first_conv
+      
+      #####################
+      # Downsampling path #
+      #####################
+
+      skip_connection_list = []
+
+      for i in range(n_pool):
+        # Dense Block
+        stack, _ = DenseBlock(stack, n_layers_per_block[i], growth_rate, dropout_p, scope='denseblock%d' % (i+1))
+        n_filters += growth_rate * n_layers_per_block[i]
+        # At the end of the dense block, the current stack is stored in the skip_connections list
+        skip_connection_list.append(stack)
+
+        # Transition Down
+        stack = TransitionDown(stack, n_filters, dropout_p, scope='transitiondown%d'%(i+1))
+
+      skip_connection_list = skip_connection_list[::-1]
+
+      #####################
+      #     Bottleneck    #
+      #####################
+
+      # Dense Block
+      # We will only upsample the new feature maps
+      stack, block_to_upsample = DenseBlock(stack, n_layers_per_block[n_pool], growth_rate, dropout_p, scope='denseblock%d' % (n_pool + 1))
+
+
+      #######################
+      #   Upsampling path   #
+      #######################
+
+      for i in range(n_pool):
+        # Transition Up ( Upsampling + concatenation with the skip connection)
+        n_filters_keep = growth_rate * n_layers_per_block[n_pool + i]
+        stack = TransitionUp(block_to_upsample, skip_connection_list[i], n_filters_keep, scope='transitionup%d' % (n_pool + i + 1))
+
+        # Dense Block
+        # We will only upsample the new feature maps
+        stack, block_to_upsample = DenseBlock(stack, n_layers_per_block[n_pool + i + 1], growth_rate, dropout_p, scope='denseblock%d' % (n_pool + i + 2))
+
+
+      #####################
+      #      Softmax      #
+      #####################
+      net = slim.conv2d(stack, num_classes, [1, 1], activation_fn=None, scope='logits')
+      return net
+
+
+
+def ConvBlock(inputs, n_filters, kernel_size=[3, 3]):
+    """
+    Builds the conv block for MobileNets
+    Apply successivly a 2D convolution, BatchNormalization relu
+    """
+    # Skip pointwise by setting num_outputs=Non
+    net = slim.conv2d(inputs, n_filters, kernel_size=[1, 1], activation_fn=None)
+    net = slim.batch_norm(net, fused=True)
+    net = tf.nn.relu(net)
+    return net
+
+def DepthwiseSeparableConvBlock(inputs, n_filters, kernel_size=[3, 3]):
+    """
+    Builds the Depthwise Separable conv block for MobileNets
+    Apply successivly a 2D separable convolution, BatchNormalization relu, conv, BatchNormalization, relu
+    """
+    # Skip pointwise by setting num_outputs=None
+    net = slim.separable_convolution2d(inputs, num_outputs=None, depth_multiplier=1, kernel_size=[3, 3], activation_fn=None)
+
+    net = slim.batch_norm(net, fused=True)
+    net = tf.nn.relu(net)
+    net = slim.conv2d(net, n_filters, kernel_size=[1, 1], activation_fn=None)
+    net = slim.batch_norm(net, fused=True)
+    net = tf.nn.relu(net)
+    return net
+
+def conv_transpose_block(inputs, n_filters, kernel_size=[3, 3]):
+    """
+    Basic conv transpose block for Encoder-Decoder upsampling
+    Apply successivly Transposed Convolution, BatchNormalization, ReLU nonlinearity
+    """
+    net = slim.conv2d_transpose(inputs, n_filters, kernel_size=[3, 3], stride=[2, 2], activation_fn=None)
+    net = tf.nn.relu(slim.batch_norm(net))
+    return net
+
+def build_mobile_unet(inputs, preset_model, num_classes):
+
+    has_skip = False
+    if preset_model == "MobileUNet":
+        has_skip = False
+    elif preset_model == "MobileUNet-Skip":
+        has_skip = True
+    else:
+        raise ValueError("Unsupported MobileUNet model '%s'. This function only supports MobileUNet and MobileUNet-Skip" % (preset_model))
+
+    #####################
+    # Downsampling path #
+    #####################
+    net = ConvBlock(inputs, 64)
+    net = DepthwiseSeparableConvBlock(net, 64)
+    net = slim.pool(net, [2, 2], stride=[2, 2], pooling_type='MAX')
+    skip_1 = net
+
+    net = DepthwiseSeparableConvBlock(net, 128)
+    net = DepthwiseSeparableConvBlock(net, 128)
+    net = slim.pool(net, [2, 2], stride=[2, 2], pooling_type='MAX')
+    skip_2 = net
+
+    net = DepthwiseSeparableConvBlock(net, 256)
+    net = DepthwiseSeparableConvBlock(net, 256)
+    net = DepthwiseSeparableConvBlock(net, 256)
+    net = slim.pool(net, [2, 2], stride=[2, 2], pooling_type='MAX')
+    skip_3 = net
+
+    net = DepthwiseSeparableConvBlock(net, 512)
+    net = DepthwiseSeparableConvBlock(net, 512)
+    net = DepthwiseSeparableConvBlock(net, 512)
+    net = slim.pool(net, [2, 2], stride=[2, 2], pooling_type='MAX')
+    skip_4 = net
+
+    net = DepthwiseSeparableConvBlock(net, 512)
+    net = DepthwiseSeparableConvBlock(net, 512)
+    net = DepthwiseSeparableConvBlock(net, 512)
+    net = slim.pool(net, [2, 2], stride=[2, 2], pooling_type='MAX')
+
+
+    #####################
+    # Upsampling path #
+    #####################
+    net = conv_transpose_block(net, 512)
+    net = DepthwiseSeparableConvBlock(net, 512)
+    net = DepthwiseSeparableConvBlock(net, 512)
+    net = DepthwiseSeparableConvBlock(net, 512)
+    if has_skip:
+        net = tf.add(net, skip_4)
+
+    net = conv_transpose_block(net, 512)
+    net = DepthwiseSeparableConvBlock(net, 512)
+    net = DepthwiseSeparableConvBlock(net, 512)
+    net = DepthwiseSeparableConvBlock(net, 256)
+    if has_skip:
+        net = tf.add(net, skip_3)
+
+    net = conv_transpose_block(net, 256)
+    net = DepthwiseSeparableConvBlock(net, 256)
+    net = DepthwiseSeparableConvBlock(net, 256)
+    net = DepthwiseSeparableConvBlock(net, 128)
+    if has_skip:
+        net = tf.add(net, skip_2)
+
+    net = conv_transpose_block(net, 128)
+    net = DepthwiseSeparableConvBlock(net, 128)
+    net = DepthwiseSeparableConvBlock(net, 64)
+    if has_skip:
+        net = tf.add(net, skip_1)
+
+    net = conv_transpose_block(net, 64)
+    net = DepthwiseSeparableConvBlock(net, 64)
+    net = DepthwiseSeparableConvBlock(net, 64)
+
+    #####################
+    #      Softmax      #
+    #####################
+    net = slim.conv2d(net, num_classes, [1, 1], activation_fn=None, scope='logits')
+    return net

@@ -19,11 +19,11 @@ import math
 random.seed(os.urandom(9))
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--dataset", help="Dataset to train", default='./dataset_classif')  # 'Datasets/MNIST-Big/'
+parser.add_argument("--dataset", help="Dataset to train", default='/media/msrobot/discoGordo/Corales/patch_data')  # 'Datasets/MNIST-Big/'
 parser.add_argument("--init_lr", help="Initial learning rate", default=1e-3)
 parser.add_argument("--min_lr", help="Initial learning rate", default=1e-5)
-parser.add_argument("--init_batch_size", help="batch_size", default=1)
-parser.add_argument("--max_batch_size", help="batch_size", default=1)
+parser.add_argument("--init_batch_size", help="batch_size", default=4)
+parser.add_argument("--max_batch_size", help="batch_size", default=4)
 parser.add_argument("--epochs", help="Number of epochs to train", default=40)
 parser.add_argument("--width", help="width", default=224)
 parser.add_argument("--height", help="height", default=224)
