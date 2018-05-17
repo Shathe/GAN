@@ -40,8 +40,8 @@ def module2(inputs, filters, name, training=True):
         x3 = tf.add(x2, x3)
         x4 = tf.layers.separable_conv2d(x3, int(filters_4), (3,3), padding='same', 
             depthwise_initializer=winit, pointwise_initializer=winit,  activation=tf.nn.selu, dilation_rate=(8, 8))
-
-
+    
+                                
         x = tf.concat((x1, x2, x3, x4), axis=3)
 
         # x = tf.add(x, x2)
@@ -75,6 +75,35 @@ def module3(inputs, filters, name, training=True):
 
 
         return x
+def module_old(inputs, filters, name, dilation_rate=(1, 1), training=True):
+
+
+    with tf.variable_scope('module_' + name):
+
+
+
+
+        x = tf.layers.separable_conv2d(inputs, int(filters), (1,3), padding='same', 
+            depthwise_initializer=winit, pointwise_initializer=winit,  activation=tf.nn.selu, dilation_rate=(1,1), depthwise_regularizer=l2_regularizer(0.0001), pointwise_regularizer=l2_regularizer(0.0001))
+
+        x2 = tf.layers.separable_conv2d(x, int(filters), (3,1), padding='same', 
+            depthwise_initializer=winit, pointwise_initializer=winit,  activation=tf.nn.selu, dilation_rate=(1,1), depthwise_regularizer=l2_regularizer(0.0001), pointwise_regularizer=l2_regularizer(0.0001))
+
+        x = tf.layers.separable_conv2d(x2, int(filters), (3,1), padding='same', 
+            depthwise_initializer=winit, pointwise_initializer=winit,  activation=tf.nn.selu, dilation_rate=dilation_rate, depthwise_regularizer=l2_regularizer(0.0001), pointwise_regularizer=l2_regularizer(0.0001))
+
+        x = tf.layers.separable_conv2d(x, int(filters), (1,3), padding='same', 
+            depthwise_initializer=winit, pointwise_initializer=winit,  activation=tf.nn.selu, dilation_rate=dilation_rate, depthwise_regularizer=l2_regularizer(0.0001), pointwise_regularizer=l2_regularizer(0.0001))
+
+        x = tf.add(x, x2)/2
+        x = tf.layers.dropout(x, rate=0.30, training=training)
+
+
+        x = tf.add(x, inputs[:,:,:,:filters])/2
+
+
+        return x
+
 def module(inputs, filters, name, dilation_rate=(1, 1), training=True):
 
 
@@ -95,15 +124,13 @@ def module(inputs, filters, name, dilation_rate=(1, 1), training=True):
         x = tf.layers.separable_conv2d(x, int(filters), (1,3), padding='same', 
             depthwise_initializer=winit, pointwise_initializer=winit,  activation=tf.nn.selu, dilation_rate=dilation_rate)
 
-        x = tf.add(x, x2)/2
+        x = tf.add(x, x2)
         x = tf.layers.dropout(x, rate=0.30, training=training)
 
 
-        x = tf.add(x, inputs[:,:,:,:filters])/2
-
+        x = tf.add(x, inputs[:,:,:,:filters])
 
         return x
-
 
 def downsampling(inputs, filters, name, strides=(2, 2), kernels=(3, 3), training=True):
     with tf.variable_scope('downsampling_' + name):
@@ -136,7 +163,7 @@ def upsampling2(inputs, filters, name, strides=(2, 2), kernels=(3, 3), training=
         if last:
             activation=None
 
-        x = tf.layers.conv2d_transpose(inputs, filters, kernels, strides=strides, padding='same', kernel_initializer=winit,  activation=activation) # there is also dilation_rate!
+        x = tf.layers.conv2d_transpose(inputs, filters, kernels, strides=strides, padding='same', kernel_initializer=winit,  activation=activation,) # there is also dilation_rate!
 
         return x
 
@@ -172,7 +199,42 @@ def MiniNet2(input_x=None, n_classes=20, training=True):
     return   upsampling2(m13,n_classes, 'up3', training=training, last=True)
 
 
+
+
 def MiniNet(input_x=None, n_classes=20, training=True):
+    d1 = downsampling2(input_x, 12, 'd1', strides=(2, 2), kernels=(3, 3), training=training)
+    d2 = downsampling2(d1, 24, 'd2', strides=(2, 2), kernels=(3, 3), training=training)
+    d3 = downsampling2(d2, 48, 'd2_1', strides=(2, 2), kernels=(3, 3), training=training)
+    d4 = downsampling2(d3, 96, 'd3', strides=(2, 2), kernels=(3, 3), training=training)
+    m4 = module(d4, 96, 'm3',  dilation_rate=(4, 4), training=training)
+    m5 = module(m4, 96, 'm4',  dilation_rate=(8, 8), training=training)
+    m6 = module(m5, 96, 'm5',  dilation_rate=(2, 2), training=training)
+    m7 = module(m6, 96, 'm6',  dilation_rate=(6, 6), training=training)
+    up1 = upsampling2(m7,48, 'up1', training=training)
+
+    d5 = downsampling2(d4, 192, 'd5', strides=(2, 2), kernels=(3, 3), training=training)
+    d5 = module(d5, 192, 'm7d5',  dilation_rate=(2, 2), training=training)
+    d6 = downsampling2(d5, 386, 'd6', strides=(2, 2), kernels=(3, 3), training=training)
+    d6 = module(d6, 386, 'm7d6',  dilation_rate=(1, 1), training=training)
+    d6 = module(d6, 386, 'm7d6d6',  dilation_rate=(1, 1), training=training)
+    up_1 = upsampling2(d6,192, '_up11', training=training)
+    up_1 = module(up_1, 192, 'm7d5up_1',  dilation_rate=(2, 2), training=training)
+    up_2 = upsampling2(up_1,96, '_up22', training=training)
+    up_3 = upsampling2(up_2,48, '_up33', training=training)
+
+
+    up_concat = tf.concat((up_3, up1), axis=3)
+
+    m9 = module(up_concat, 48, 'm8',  dilation_rate=(2, 2), training=training)
+
+
+    up2 = upsampling2(tf.concat((m9, d3), axis=3),32, 'up2', training=training)
+    up3 = upsampling2(tf.concat((up2, d2), axis=3),16, 'up22', training=training)
+
+    out = upsampling2(tf.concat((up3, d1), axis=3),n_classes, 'up3', training=training, last=True)
+    return   out
+
+def MiniNet_old(input_x=None, n_classes=20, training=True):
     d1 = downsampling2(input_x, 12, 'd1', strides=(2, 2), kernels=(3, 3), training=training)
     d2 = downsampling2(d1, 24, 'd2', strides=(2, 2), kernels=(3, 3), training=training)
     d3 = downsampling2(d2, 48, 'd2_1', strides=(2, 2), kernels=(3, 3), training=training)

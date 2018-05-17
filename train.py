@@ -18,30 +18,29 @@ import cv2
 import math
 import sys
 
-random.seed(os.urandom(9))
+random.seed(os.urandom(7))
 #tensorboard --logdir=train:./logs/train,test:./logs/test/
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--dataset", help="Dataset to train", default='/media/msrobot/discoGordo/city')  # 'Datasets/MNIST-Big/'
+parser.add_argument("--dataset", help="Dataset to train", default='/media/msrobot/discoGordo/Download_april/machine_printed_legible')  # '/media/msrobot/discoGordo/city'
 #/media/msrobot/discoGordo/Download_april/machine_printed_legible
 parser.add_argument("--dimensions", help="Temporal dimensions to get from each sample", default=3)
 parser.add_argument("--augmentation", help="Image augmentation", default=1)
 parser.add_argument("--init_lr", help="Initial learning rate", default=1e-4)
 parser.add_argument("--lr_decay", help="1 for lr decay, 0 for not", default=1)
-parser.add_argument("--min_lr", help="Initial learning rate", default=1e-5)
-parser.add_argument("--init_batch_size", help="batch_size", default=32)
-parser.add_argument("--max_batch_size", help="batch_size", default=32)
-parser.add_argument("--n_classes", help="number of classes to classify", default=19)
-parser.add_argument("--ignore_label", help="class to ignore", default=255)
-parser.add_argument("--epochs", help="Number of epochs to train", default=100)
+parser.add_argument("--min_lr", help="Initial learning rate", default=3e-5)
+parser.add_argument("--init_batch_size", help="batch_size", default=64)
+parser.add_argument("--max_batch_size", help="batch_size", default=64)
+parser.add_argument("--n_classes", help="number of classes to classify", default=2)
+parser.add_argument("--ignore_label", help="class to ignore", default=2)
+parser.add_argument("--epochs", help="Number of epochs to train", default=80)
 parser.add_argument("--width", help="width", default=512)
 parser.add_argument("--height", help="height", default=256)
 parser.add_argument("--save_model", help="save_model", default=1)
 parser.add_argument("--finetune_encoder", help="whether to finetune_encoder", default=0)
-parser.add_argument("--checkpoint_path", help="checkpoint path", default='./models/model_decoder/')
+parser.add_argument("--checkpoint_path", help="checkpoint path", default='./models/model_text/')
 parser.add_argument("--train", help="if true, train, if not, test", default=1)
 args = parser.parse_args()
-
 
 # Hyperparameter
 init_learning_rate = float(args.init_lr)
@@ -67,7 +66,7 @@ if augmentation:
 	augmenter = 'segmentation'
 
 
-loader = Loader(dataFolderPath=args.dataset, n_classes=n_classes, problemType = 'segmentation', width=width, height=height, ignore_label = ignore_label, median_frequency=0.10)
+loader = Loader(dataFolderPath=args.dataset, n_classes=n_classes, problemType = 'segmentation', width=width, height=height, ignore_label = ignore_label, median_frequency=0.50)
 testing_samples = len(loader.image_test_list)
 training_samples = len(loader.image_train_list)
 
@@ -121,14 +120,12 @@ conf_matrix_all = tf.confusion_matrix( labels, predictions, num_classes=n_classe
 # SUMMARY FOR TENSORBOARD
 tf.summary.scalar('loss', cost)
 tf.summary.scalar('accuracy', accuracy)
-tf.summary.scalar('mean_acc', mean_acc)
 tf.summary.scalar('learning_rate', learning_rate)
-tf.summary.scalar('iou', iou)
-tf.summary.image('input', batch_images, max_outputs=10)
+tf.summary.image('input', batch_images, max_outputs=4)
 output_image = tf.expand_dims(tf.cast(tf.argmax(output, 3), tf.float32), -1)
-tf.summary.image('output', output_image, max_outputs=10)
+tf.summary.image('output', output_image, max_outputs=4)
 label_image = tf.expand_dims(tf.cast(tf.argmax(label, 3), tf.float32), -1)
-tf.summary.image('label', label_image, max_outputs=10)
+tf.summary.image('label', label_image, max_outputs=4)
 
 
 
@@ -156,7 +153,6 @@ with tf.control_dependencies(update_ops):
 
  
 # Times to show information of training
-times_show_per_epoch = 5
 
 saver = tf.train.Saver(tf.global_variables())
 
@@ -172,7 +168,7 @@ with tf.Session() as sess:
 	sess.run(tf.local_variables_initializer())
 
 	# get checkpoint if there is one
-	ckpt = tf.train.get_checkpoint_state(checkpoint_path+'iou.ckpt')
+	ckpt = tf.train.get_checkpoint_state(checkpoint_path)
 	if ckpt and tf.train.checkpoint_exists(ckpt.model_checkpoint_path):
 		print('Loading model...')
 		saver.restore(sess, ckpt.model_checkpoint_path)
@@ -193,7 +189,7 @@ with tf.Session() as sess:
 		epoch_learning_rate = init_learning_rate
 		batch_size_decimal = float(init_batch_size)
 		best_val_loss = float('Inf')
-		best_iou = float('Inf')
+		best_iou = float('-Inf')
 		# EPOCH  loop
 		for epoch in range(total_epochs):
 			# Calculate tvariables for the batch and inizialize others
@@ -201,15 +197,14 @@ with tf.Session() as sess:
 			batch_size = int(batch_size_decimal)
 			print ("epoch " + str(epoch+ 1) + ", lr: " + str(epoch_learning_rate) + ", batch_size: " + str(batch_size) )
 
-			total_batch = int(training_samples / batch_size)
-			show_each_steps = int(total_batch / times_show_per_epoch)
-
-			val_loss_acum = 0
-			accuracy_rates_acum = 0
-			times_test=0
+			total_steps = int(training_samples / batch_size) + 1
+			show_each_steps = int(testing_samples/batch_size)
+			if show_each_steps > total_steps:
+				show_each_steps = total_steps
+			loss_acum=0.0
 
 			# steps in every epoch
-			for step in range(total_batch):
+			for step in range(total_steps):
 				# get training data
 				batch_x, batch_y, batch_mask = loader.get_batch(size=batch_size, train=True, augmenter=augmenter)#, augmenter='segmentation'
 
@@ -218,45 +213,40 @@ with tf.Session() as sess:
 					label: batch_y,
 					learning_rate: epoch_learning_rate,
 					mask_label: batch_mask,
-					training_flag: 1
+					training_flag: True
 				}
 				_, loss = sess.run([train, cost], feed_dict=train_feed_dict)
 
 
 				# show info
 				if step % show_each_steps == 0:
-					global_step += show_each_steps
 
 					train_summary, train_accuracy= sess.run([merged, accuracy], feed_dict=train_feed_dict)
 					print("Step:", step, "Loss:", loss, "Training accuracy:", train_accuracy)
-					writer_train.add_summary(train_summary, global_step=global_step/show_each_steps)
+					writer_train.add_summary(train_summary)
 				
 
-			# TEST
-			loss_acum=0.0
-			for i in xrange(0, testing_samples):
-				x_test, y_test, mask_test = loader.get_batch(size=1, train=False)
-				test_feed_dict = {
-					input_x: x_test,
-					label: y_test,
-					mask_label: mask_test,
-					learning_rate: 0,
-					training_flag: 0
-				}
-				acc_update, miou_update, mean_acc_update, test_summary, val_loss = sess.run([acc_op,  conf_mat, mean_acc_op, merged, cost], feed_dict=test_feed_dict)
-				acc_total, miou_total,mean_acc_total, matrix_conf = sess.run([ acc,  iou, mean_acc, conf_matrix_all], feed_dict=test_feed_dict)
-				'''
-				if math.isnan(val_loss):
-					val_loss = np.inf
-				'''
-				loss_acum=loss_acum+val_loss
+					x_test, y_test, mask_test = loader.get_batch(size=batch_size, train=False)
+					test_feed_dict = {
+						input_x: x_test,
+						label: y_test,
+						mask_label: mask_test,
+						learning_rate: 0,
+						training_flag: False
+					}
+					acc_update, miou_update, mean_acc_update, test_summary, val_loss = sess.run([acc_op,  conf_mat, mean_acc_op, merged, cost], feed_dict=test_feed_dict)
+					acc_total, miou_total,mean_acc_total, matrix_conf = sess.run([ acc,  iou, mean_acc, conf_matrix_all], feed_dict=test_feed_dict)
+					writer_test.add_summary(test_summary)
+					loss_acum=loss_acum+val_loss
 
-			writer_test.add_summary(test_summary, global_step=global_step/show_each_steps)
+
+
+
 			print("TEST")
 			print("Accuracy: " + str(acc_total))
 			print("miou: " + str(miou_total))
 			print("mean accuracy: " + str(mean_acc_total))
-			print("loss: " + str(loss_acum/testing_samples))
+			print("loss: " + str(loss_acum/(batch_size*show_each_steps)))
 			#print(matrix_conf)
 			# initialize metric variables for next epoch
 			sess.run(tf.variables_initializer(stream_vars))
@@ -265,10 +255,10 @@ with tf.Session() as sess:
 			# save models
 			if save_model and best_iou < miou_total:
 				best_iou = miou_total
-				saver.save(sess=sess, save_path=checkpoint_path+'iou.ckpt')
-			if save_model and best_val_loss > val_loss_acum:
-				best_val_loss = val_loss_acum
-				saver.save(sess=sess, save_path=checkpoint_path+'val_loss.ckpt')
+				saver.save(sess=sess, save_path=checkpoint_path+'iou/model.ckpt')
+			if save_model and best_val_loss > loss_acum/testing_samples:
+				best_val_loss = loss_acum/testing_samples
+				saver.save(sess=sess, save_path=checkpoint_path+'model.ckpt')
 
 
 
@@ -298,7 +288,7 @@ with tf.Session() as sess:
 				learning_rate: 0,
 				training_flag: 0
 			}
-			acc_update, miou_update, mean_acc_update, test_summary, val_loss = sess.run([acc_op,  conf_mat, mean_acc_op, merged, cost], feed_dict=test_feed_dict)
+			acc_update, miou_update, mean_acc_update, val_loss = sess.run([acc_op,  conf_mat, mean_acc_op, cost], feed_dict=test_feed_dict)
 			acc_total, miou_total,mean_acc_total, matrix_conf = sess.run([ acc,  iou, mean_acc, conf_matrix_all], feed_dict=test_feed_dict)
 			'''
 			if math.isnan(val_loss):
@@ -306,9 +296,10 @@ with tf.Session() as sess:
 			'''
 			loss_acum=loss_acum+val_loss
 
-		writer_test.add_summary(test_summary, global_step=global_step/show_each_steps)
 		print("TEST")
 		print("Accuracy: " + str(acc_total))
 		print("miou: " + str(miou_total))
 		print("mean accuracy: " + str(mean_acc_total))
 		print("loss: " + str(loss_acum/testing_samples))
+		print('matrix_conf')
+		print(matrix_conf)

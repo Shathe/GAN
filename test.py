@@ -105,12 +105,11 @@ with tf.Session() as sess:
 	sess.run(tf.global_variables_initializer())
 	sess.run(tf.local_variables_initializer())
 	ckpt = tf.train.get_checkpoint_state('./models/model_decoder')  # './model/best'
-	ckpt_best = tf.train.get_checkpoint_state('./models/model_decoder/best')  # './model/best'
-	if ckpt and tf.train.checkpoint_exists(ckpt.model_checkpoint_path):
+	ckpt_best = tf.train.get_checkpoint_state('./models/model_decoder/iou')  # './model/best'
+	if ckpt_best and tf.train.checkpoint_exists(ckpt.model_checkpoint_path):
 		saver.restore(sess, ckpt_best.model_checkpoint_path)
 
 	# TEST
-
 	for i in xrange(0, testing_samples, max_batch_size):
 		if i + max_batch_size > testing_samples:
 			max_batch_size = testing_samples - i
@@ -130,14 +129,14 @@ with tf.Session() as sess:
 		else:
 			confusion_matrix_total = confusion_matrix_total + matrix
 
-	if not os.path.exists('output/'):
-		os.makedirs('output/')
-		
-	image_salida = np.argmax(image_salida, 3)
-	for index_output in xrange(max_batch_size):
-		name_split = loader.image_test_list[index_output + i].split('/')
-		name = name_split[len(name_split)-1].replace('.jpg','.png').replace('.jpeg','.png')
-		cv2.imwrite('output/'+name, image_salida[index_output])
+		if not os.path.exists('output/'):
+			os.makedirs('output/')
+
+		image_salida = np.argmax(image_salida, 3)
+		for index_output in xrange(max_batch_size):
+			name_split = loader.image_test_list[index_output + i].split('/')
+			name = name_split[len(name_split)-1].replace('.jpg','.png').replace('.jpeg','.png')
+			cv2.imwrite('output/'+name, image_salida[index_output])
 
 	print("Accuracy: " + str(acc_update))
 	print("miou: " + str(miou_total))
