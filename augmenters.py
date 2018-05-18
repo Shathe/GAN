@@ -95,7 +95,7 @@ def get_augmenter(name, c_val=255, vertical_flip=True):
             sometimes(iaa.ContrastNormalization((ContrastNormalization, ContrastNormalization))),
             '''
     #uniform(-30, 30)
-            
+
             seq_image = iaa.Sequential([
                 iaa.Fliplr(value_flip),  # horizontally flip 50% of the images
                 # iaa.Flipud(value_flip2),  # vertically flip 50% of the images

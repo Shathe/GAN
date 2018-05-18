@@ -198,7 +198,6 @@ class Loader:
 				img = cv2.imread(random_images[index])
 
 
-
 			label = cv2.imread(random_labels[index],0)
 			# check if error
 			if img is None or label is  None:
