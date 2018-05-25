@@ -14,14 +14,93 @@ def lovasz_grad(gt_sorted):
     Computes gradient of the Lovasz extension w.r.t sorted errors
     See Alg. 1 in paper
     """
-    gts = tf.reduce_sum(gt_sorted)
-    intersection = gts - tf.cumsum(gt_sorted)
+    gts = tf.reduce_sum(gt_sorted) # number of elements of the computing class
+    intersection = gts - tf.cumsum(gt_sorted) #
     union = gts + tf.cumsum(1. - gt_sorted)
     jaccard = 1. - intersection / union
     jaccard = tf.concat((jaccard[0:1], jaccard[1:] - jaccard[:-1]), 0)
     return jaccard
 
 
+
+# --------------------------- MULTICLASS LOSSES ---------------------------
+
+
+def lovasz_softmax(probas, labels, classes='all', per_image=False, ignore=None, order='BHWC'):
+    # lovasz_softmax(probas=tf.nn.softmax(output), labels=tf.argmax(label, axis=3), classes='present', per_image=False, ignore=n_classes, order='BHWC')
+    """
+    Multi-class Lovasz-Softmax loss
+      probas: [B, H, W, C] or [B, C, H, W] Variable, class probabilities at each prediction (between 0 and 1)
+      labels: [B, H, W] Tensor, ground truth labels (between 0 and C - 1)
+      classes: 'all' for all, 'present' for classes present in labels, or a list of classes to average.
+      per_image: compute the loss per image instead of per batch
+      ignore: void class labels
+      order: use BHWC or BCHW
+    """
+    if per_image:
+        def treat_image(prob_lab):
+            prob, lab = prob_lab
+            prob, lab = tf.expand_dims(prob, 0), tf.expand_dims(lab, 0)
+            prob, lab = flatten_probas(prob, lab, ignore, order)
+            return lovasz_softmax_flat(prob, lab, classes=classes)
+        losses = tf.map_fn(treat_image, (probas, labels), dtype=tf.float32)
+        loss = tf.reduce_mean(losses)
+    else:
+        loss = lovasz_softmax_flat(*flatten_probas(probas, labels, ignore, order), classes=classes)
+    return loss
+
+
+def lovasz_softmax_flat(probas, labels, classes='all'):
+    """
+    Multi-class Lovasz-Softmax loss
+      probas: [P, C] Variable, class probabilities at each prediction (between 0 and 1)
+      labels: [P] Tensor, ground truth labels (between 0 and C - 1)
+      classes: 'all' for all, 'present' for classes present in labels, or a list of classes to average.
+    """
+    C = probas.shape[1]
+    losses = []
+    present = [] # vector of dimension [N_classes]. present[class_i] will have the value of the number of pixels of that class in the ground truth
+    class_to_sum = list(range(C)) if classes in ['all', 'present'] else classes # vector from 0 to Nn_clases [0,1,....,n_classes]
+    for c in class_to_sum:
+        fg = tf.cast(tf.equal(labels, c), probas.dtype)  # foreground for class c, fg is a vector of size [N_pixels]. [1,0,1,0,0,0,0,1,0,1...] where 1's means that the pixel is of the class [c]
+        if classes == 'present':
+            present.append(tf.reduce_sum(fg) > 0) # Adds to vector [present] if the class is present in the Gound truth
+        errors = tf.abs(fg - probas[:, c]) # errors is a vector of size [n_pixels] calculates the error for the class [c]. (1 - predicted probability) for ground truth labels of class [c].
+        errors_sorted, perm = tf.nn.top_k(errors, k=tf.shape(errors)[0], name="descending_sort_{}".format(c)) # ordena los errores..
+        fg_sorted = tf.gather(fg, perm) # vector fg sorted by error
+        grad = lovasz_grad(fg_sorted)
+        losses.append(
+            tf.tensordot(errors_sorted, tf.stop_gradient(grad), 1, name="loss_class_{}".format(c))
+                      )
+    if len(class_to_sum) == 1:  # short-circuit mean when only one class
+        return losses[0]
+    losses_tensor = tf.stack(losses)
+    if classes == 'present':
+        present = tf.stack(present)
+        losses_tensor = tf.boolean_mask(losses_tensor, present)
+    loss = tf.reduce_mean(losses_tensor)
+    return loss
+
+# Flatten probabilities and labels from [B, H, W, C] to [N, C] and from [B, H, W] to [N]
+# It also ignores the labels and probabilities where labels==label_to_ignore
+def flatten_probas(probas, labels, ignore=None, order='BHWC'):
+    """
+    Flattens predictions in the batch
+    """
+    if order == 'BCHW':
+        probas = tf.transpose(probas, (0, 2, 3, 1), name="BCHW_to_BHWC")
+        order = 'BHWC'
+    if order != 'BHWC':
+        raise NotImplementedError('Order {} unknown'.format(order))
+    C = probas.shape[3]
+    probas = tf.reshape(probas, (-1, C))
+    labels = tf.reshape(labels, (-1,))
+    if ignore is None:
+        return probas, labels
+    valid = tf.not_equal(labels, ignore)
+    vprobas = tf.boolean_mask(probas, valid, name='valid_probas')
+    vlabels = tf.boolean_mask(labels, valid, name='valid_labels')
+    return vprobas, vlabels
 # --------------------------- BINARY LOSSES ---------------------------
 
 
@@ -87,90 +166,3 @@ def flatten_binary_scores(scores, labels, ignore=None):
     vscores = tf.boolean_mask(scores, valid, name='valid_scores')
     vlabels = tf.boolean_mask(labels, valid, name='valid_labels')
     return vscores, vlabels
-
-
-# --------------------------- MULTICLASS LOSSES ---------------------------
-
-training_flag = tf.placeholder(tf.bool)
-input_x = tf.placeholder(tf.float32, shape=[None, height, width, channels], name='input')
-batch_images = tf.reverse(input_x, axis=[-1]) #opencv rgb -bgr
-label = tf.placeholder(tf.float32, shape=[None, height, width, n_classes + 1], name='output') # the n_classes + 1 is for the ignore classes
-mask_label = tf.placeholder(tf.float32, shape=[None, height, width], name='mask')
-learning_rate = tf.placeholder(tf.float32, name='learning_rate')
-
-
-def lovasz_softmax(probas, labels, classes='all', per_image=False, ignore=None, order='BHWC'): 
-    # lovasz_softmax(probas=tf.nn.softmax(input_x), labels=tf.argmax(label, axis=3), classes='present', per_image=False, ignore=n_classes, order='BHWC')
-    """
-    Multi-class Lovasz-Softmax loss
-      probas: [B, H, W, C] or [B, C, H, W] Variable, class probabilities at each prediction (between 0 and 1)
-      labels: [B, H, W] Tensor, ground truth labels (between 0 and C - 1)
-      classes: 'all' for all, 'present' for classes present in labels, or a list of classes to average.
-      per_image: compute the loss per image instead of per batch
-      ignore: void class labels
-      order: use BHWC or BCHW
-    """
-    if per_image:
-        def treat_image(prob_lab):
-            prob, lab = prob_lab
-            prob, lab = tf.expand_dims(prob, 0), tf.expand_dims(lab, 0)
-            prob, lab = flatten_probas(prob, lab, ignore, order)
-            return lovasz_softmax_flat(prob, lab, classes=classes)
-        losses = tf.map_fn(treat_image, (probas, labels), dtype=tf.float32)
-        loss = tf.reduce_mean(losses)
-    else:
-        loss = lovasz_softmax_flat(*flatten_probas(probas, labels, ignore, order), classes=classes)
-    return loss
-
-
-def lovasz_softmax_flat(probas, labels, classes='all'):
-    """
-    Multi-class Lovasz-Softmax loss
-      probas: [P, C] Variable, class probabilities at each prediction (between 0 and 1)
-      labels: [P] Tensor, ground truth labels (between 0 and C - 1)
-      classes: 'all' for all, 'present' for classes present in labels, or a list of classes to average.
-    """
-    C = probas.shape[1]
-    losses = []
-    present = [] # vector of dimension [N_classes]. present[class_i] will have the value of the number of pixels of that class in the ground truth
-    class_to_sum = list(range(C)) if classes in ['all', 'present'] else classes # vector from 0 to Nn_clases [0,1,....,n_classes]
-    for c in class_to_sum:
-        fg = tf.cast(tf.equal(labels, c), probas.dtype)  # foreground for class c, fg is a vector of size [N_pixels]. [1,0,1,0,0,0,0,1,0,1...] where 1's means that the pixel is of the class [c]
-        if classes == 'present':
-            present.append(tf.reduce_sum(fg) > 0) # Adds to vector [present] the number of pixels of the class 
-        errors = tf.abs(fg - probas[:, c]) # errors is a vector of size [n_pixels] calculates the error for the class [c]. (1 - predicted probability) for ground truth labels of class [c].
-        errors_sorted, perm = tf.nn.top_k(errors, k=tf.shape(errors)[0], name="descending_sort_{}".format(c))
-        fg_sorted = tf.gather(fg, perm)
-        grad = lovasz_grad(fg_sorted)
-        losses.append(
-            tf.tensordot(errors_sorted, tf.stop_gradient(grad), 1, name="loss_class_{}".format(c))
-                      )
-    if len(class_to_sum) == 1:  # short-circuit mean when only one class
-        return losses[0]
-    losses_tensor = tf.stack(losses)
-    if classes == 'present':
-        present = tf.stack(present)
-        losses_tensor = tf.boolean_mask(losses_tensor, present)
-    loss = tf.reduce_mean(losses_tensor)
-    return loss
-
-# Flatten probabilities and labels from [B, H, W, C] to [N, C] and from [B, H, W] to [N]
-# It also ignores the labels and probabilities where labels==label_to_ignore
-def flatten_probas(probas, labels, ignore=None, order='BHWC'):
-    """
-    Flattens predictions in the batch
-    """
-    if order == 'BCHW':
-        probas = tf.transpose(probas, (0, 2, 3, 1), name="BCHW_to_BHWC")
-        order = 'BHWC'
-    if order != 'BHWC':
-        raise NotImplementedError('Order {} unknown'.format(order))
-    C = probas.shape[3]
-    probas = tf.reshape(probas, (-1, C))
-    labels = tf.reshape(labels, (-1,))
-    if ignore is None:
-        return probas, labels
-    valid = tf.not_equal(labels, ignore)
-    vprobas = tf.boolean_mask(probas, valid, name='valid_probas')
-    vlabels = tf.boolean_mask(labels, valid, name='valid_labels')
-    return vprobas, vlabels

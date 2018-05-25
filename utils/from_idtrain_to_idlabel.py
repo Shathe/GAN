@@ -10,7 +10,7 @@ import math
 import sys
 import glob
 
-files = glob.glob(os.path.join('results/output/*'))
+files = glob.glob(os.path.join('../results/output/*'))
 label_to_train={
     '0': 255,
     '1': 255,
@@ -73,14 +73,16 @@ train_to_label={
 def transform(image):
 
     return np.array([ [train_to_label[str(j)] for j in i] for i in image])
+
 for file in files:
 
     print(file)
-    img =  cv2.imread(file, 0)
-    #print(np.unique(img))
+    img = cv2.imread(file, 0)
+    print(np.unique(img))
     
     img = np.array(transform(img))
-    img = cv2.resize(cv2.imread(file, 0), (img.shape[1]*4, img.shape[0]*4), interpolation = cv2.INTER_NEAREST)
+    print(np.unique(img))
+
+    img = cv2.resize(img, (img.shape[1]*4, img.shape[0]*4), interpolation = cv2.INTER_NEAREST)
     cv2.imwrite(file, img)
-    
-    
+    print(np.unique(img))

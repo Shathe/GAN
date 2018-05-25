@@ -7,7 +7,7 @@ from utils.utils import get_parameters
 from Loader import Loader
 import Network
 import math
-
+from lovasz_losses_tf import lovasz_softmax
 random.seed(os.urandom(7))
 
 parser = argparse.ArgumentParser()
@@ -16,14 +16,14 @@ parser.add_argument("--dataset", help="Dataset to train",
 # /media/msrobot/discoGordo/Download_april/machine_printed_legible
 parser.add_argument("--dimensions", help="Temporal dimensions to get from each sample", default=3)
 parser.add_argument("--augmentation", help="Image augmentation", default=1)
-parser.add_argument("--init_lr", help="Initial learning rate", default=1e-3)
+parser.add_argument("--init_lr", help="Initial learning rate", default=1e-4)
 parser.add_argument("--lr_decay", help="1 for lr decay, 0 for not", default=1)
-parser.add_argument("--min_lr", help="Initial learning rate", default=1e-6)
+parser.add_argument("--min_lr", help="Initial learning rate", default=5e-5)
 parser.add_argument("--init_batch_size", help="batch_size", default=64)
 parser.add_argument("--max_batch_size", help="batch_size", default=64)
 parser.add_argument("--n_classes", help="number of classes to classify", default=2)
 parser.add_argument("--ignore_label", help="class to ignore", default=2)
-parser.add_argument("--epochs", help="Number of epochs to train", default=400)
+parser.add_argument("--epochs", help="Number of epochs to train", default=5)
 parser.add_argument("--width", help="width", default=512)
 parser.add_argument("--height", help="height", default=256)
 parser.add_argument("--save_model", help="save_model", default=1)
@@ -62,7 +62,7 @@ if augmentation:
     augmenter = 'segmentation'
 
 loader = Loader(dataFolderPath=args.dataset, n_classes=n_classes, problemType='segmentation', width=width,
-                height=height, ignore_label=ignore_label, median_frequency=0.50)
+                height=height, ignore_label=ignore_label, median_frequency=0.00)
 testing_samples = len(loader.image_test_list)
 training_samples = len(loader.image_train_list)
 
@@ -91,7 +91,8 @@ mask_labels = tf.reshape(mask_label, [mask_label_shape[1] * mask_label_shape[0] 
 labels_ignore = labels[:, n_classes]
 labels_real = labels[:, :n_classes]
 
-cost = tf.losses.softmax_cross_entropy(labels_real, predictions, weights=mask_labels)
+# cost = tf.losses.softmax_cross_entropy(labels_real, predictions, weights=mask_labels)
+cost = lovasz_softmax(probas=tf.nn.softmax(output), labels=tf.argmax(label, axis=3), classes='present', per_image=False, ignore=n_classes, order='BHWC')
 
 # Metrics
 labels = tf.argmax(labels, 1)
@@ -125,7 +126,6 @@ restore_variables = tf.global_variables()  # [var for var in tf.global_variables
 train_variables = tf.trainable_variables() # [var for var in tf.trainable_variables() if 'up' in var.name or 'm8' in var.name]
 stream_vars = [i for i in tf.local_variables() if
                'count' in i.name or 'confusion_matrix' in i.name or 'total' in i.name]
-
 
 # Count parameters
 get_parameters()

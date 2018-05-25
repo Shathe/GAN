@@ -14,11 +14,11 @@ random.seed(os.urandom(9))
 parser = argparse.ArgumentParser()
 parser.add_argument("--dataset", help="Dataset to train", default='/media/msrobot/discoGordo/Corales/patch_data')
 # parser.add_argument("--dataset", help="Dataset to train", default='dataset_classif')  # 'Datasets/MNIST-Big/'
-parser.add_argument("--init_lr", help="Initial learning rate", default=1e-4)
-parser.add_argument("--min_lr", help="Initial learning rate", default=1e-7)
+parser.add_argument("--init_lr", help="Initial learning rate", default=0.05)
+parser.add_argument("--min_lr", help="Initial learning rate", default=5e-4)
 parser.add_argument("--init_batch_size", help="batch_size", default=32)
 parser.add_argument("--max_batch_size", help="batch_size", default=32)
-parser.add_argument("--epochs", help="Number of epochs to train", default=3)
+parser.add_argument("--epochs", help="Number of epochs to train", default=4)
 parser.add_argument("--width", help="width", default=224)
 parser.add_argument("--height", help="height", default=224)
 parser.add_argument("--save_model", help="save_model", default=1)
@@ -61,7 +61,7 @@ learning_rate = tf.placeholder(tf.float32, name='learning_rate')
 # Loss function
 cross_entropy_cnn = - label * tf.nn.log_softmax(output)
 cross_entropy_cnn_unbatched = tf.reduce_mean(cross_entropy_cnn, axis=0)
-cost = tf.reduce_sum(cross_entropy_cnn_unbatched * loader.median_frequency_exp())
+cost = tf.reduce_sum(cross_entropy_cnn_unbatched * loader.median_freq)
 
 # Accuracy function
 correct_prediction = tf.equal(tf.argmax(output, 1), tf.argmax(label, 1))
@@ -74,15 +74,11 @@ with tf.control_dependencies(update_ops):
     optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
     train = optimizer.minimize(cost)  # VARIABLES TO OPTIMIZE
 
-tf.profiler.profile(
-    tf.get_default_graph(),
-    options=tf.profiler.ProfileOptionBuilder.float_operation())
-
 # Count parameters
 get_parameters()
 
 # Times to show information of batch traiingn and test
-times_show_per_epoch = 30
+times_show_per_epoch = 50
 saver = tf.train.Saver(tf.global_variables())
 
 if not os.path.exists('./models/resnet_encoder/best'):
@@ -95,7 +91,9 @@ with tf.Session() as sess:
     ckpt_best = tf.train.get_checkpoint_state('./models/resnet_encoder/best')  # Loader model if exists
     ckpt = tf.train.get_checkpoint_state('./models/resnet_encoder')  # Loader model if exists
     if ckpt and tf.train.checkpoint_exists(ckpt.model_checkpoint_path):
+        print('loading model')
         saver.restore(sess, ckpt.model_checkpoint_path)
+        print('model loaded')
 
     # Start variables
     epoch_learning_rate = init_learning_rate
