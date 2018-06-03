@@ -12,6 +12,7 @@ import imgaug as ia
 from augmenters import get_augmenter
 import tensorflow as tf
 import sys
+from utils.utils import preprocess
 
 random.seed(os.urandom(9))
 
@@ -162,6 +163,34 @@ class Loader:
 
 			return masks
 
+	def perform_augmentation_segmentation(self, img, label, mask_image, augmenter ):
+		seq_image_contrast, seq_image_translation, seq_label, seq_mask = get_augmenter(name=augmenter, c_val=self.ignore_label)
+
+		
+		#apply some contrast  to de rgb image
+		img=img.reshape(sum(((1,),img.shape),()))
+		img = seq_image_contrast.augment_images(img)  
+		img=img.reshape(img.shape[1:])
+		
+
+		#Apply shifts and rotations to the mask, labels and image
+		
+		# Reshapes for the AUGMENTER framework
+		# the loops are due to the external library failures
+		img=img.reshape(sum(((1,),img.shape),()))
+		img = seq_image_translation.augment_images(img)  
+		img=img.reshape(img.shape[1:])
+
+		label=label.reshape(sum(((1,),label.shape),()))
+		label = seq_label.augment_images(label)
+		label=label.reshape(label.shape[1:])
+
+		mask_image=mask_image.reshape(sum(((1,),mask_image.shape),()))
+		mask_image = seq_mask.augment_images(mask_image)
+		mask_image=mask_image.reshape(mask_image.shape[1:])
+
+		return  img, label, mask_image
+
 	# Returns a random batch of segmentation images: X, Y, mask
 	def _get_batch_segmentation(self, size=32, train=True, augmenter=None):
 		# init numpy arrays 
@@ -199,15 +228,17 @@ class Loader:
 			else:
 				img = cv2.imread(random_images[index])
 
+			label = cv2.imread(random_labels[index], 0)
 
-
-			label = cv2.imread(random_labels[index],0)
-			# check if error
+			'''
 			if img is None or label is  None:
-				print(random_images[index])
-				print(random_labels[index])
-				print(indexes[index])
+			# check if error
+			print(random_images[index])
+			print(random_labels[index])
+			print(indexes[index])
+			'''
 
+			# Reshape images if its needed
 			if img.shape[1] != self.width or img.shape[0] != self.height:
 				img = cv2.resize(img, (self.width, self.height), interpolation = cv2.INTER_AREA)
 			if label.shape[1] != self.width or label.shape[0] != self.height:
@@ -216,30 +247,8 @@ class Loader:
 			mask_image = mask[index, :, :] 
 			if train and augmenter:
 
-				seq_image_contrast, seq_image_translation, seq_label, seq_mask = get_augmenter(name=augmenter, c_val=self.ignore_label)
+				img, label, mask_image = self.perform_augmentation_segmentation(img, label, mask_image, augmenter)
 
-				
-				#apply some contrast  to de rgb image
-				img=img.reshape(sum(((1,),img.shape),()))
-				img = seq_image_contrast.augment_images(img)  
-				img=img.reshape(img.shape[1:])
-				
-
-				#Apply shifts and rotations to the mask, labels and image
-				
-				# Reshapes for the AUGMENTER framework
-				# the loops are due to the external library failures
-				img=img.reshape(sum(((1,),img.shape),()))
-				img = seq_image_translation.augment_images(img)  
-				img=img.reshape(img.shape[1:])
-
-				label=label.reshape(sum(((1,),label.shape),()))
-				label = seq_label.augment_images(label)
-				label=label.reshape(label.shape[1:])
-
-				mask_image=mask_image.reshape(sum(((1,),mask_image.shape),()))
-				mask_image = seq_mask.augment_images(mask_image)
-				mask_image=mask_image.reshape(mask_image.shape[1:])
 
 			# modify the mask and the labels. Mask
 
@@ -270,7 +279,7 @@ class Loader:
 
 		#tf.keras.applications.imagenet_utils.preprocess_input(x, mode='tf')
 		#x = tf.keras.applications.xception.preprocess_input(x)
-		x = x.astype(np.float32) / 255.0 - 0.5
+		x = preprocess(x)
 		return x, y, mask
 
 

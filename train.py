@@ -7,6 +7,7 @@ from utils.utils import get_parameters
 from Loader import Loader
 import Network
 import math
+
 from lovasz_losses_tf import lovasz_softmax
 random.seed(os.urandom(7))
 
@@ -19,7 +20,6 @@ parser.add_argument("--augmentation", help="Image augmentation", default=1)
 parser.add_argument("--init_lr", help="Initial learning rate", default=1e-4)
 parser.add_argument("--lr_decay", help="1 for lr decay, 0 for not", default=1)
 parser.add_argument("--min_lr", help="Initial learning rate", default=5e-5)
-parser.add_argument("--init_batch_size", help="batch_size", default=64)
 parser.add_argument("--max_batch_size", help="batch_size", default=64)
 parser.add_argument("--n_classes", help="number of classes to classify", default=2)
 parser.add_argument("--ignore_label", help="class to ignore", default=2)
@@ -46,7 +46,6 @@ lr_decay = bool(int(args.lr_decay))
 augmentation = bool(int(args.augmentation))
 save_model = bool(int(args.save_model))
 train_or_test = bool(int(args.train))
-init_batch_size = int(args.init_batch_size)
 max_batch_size = int(args.max_batch_size)
 total_epochs = int(args.epochs)
 width = int(args.width)
@@ -55,7 +54,6 @@ ignore_label = int(args.ignore_label)
 height = int(args.height)
 channels = int(args.dimensions)
 change_lr_epoch = math.pow(min_learning_rate / init_learning_rate, 1.0 / total_epochs)
-change_batch_size = (max_batch_size - init_batch_size) / float(total_epochs - 1)
 checkpoint_path = args.checkpoint_path
 augmenter = None
 if augmentation:
@@ -68,12 +66,13 @@ training_samples = len(loader.image_train_list)
 
 # Placeholders
 training_flag = tf.placeholder(tf.bool)
-input_x = tf.placeholder(tf.float32, shape=[None, height, width, channels], name='input')
+input_x = tf.placeholder(tf.float32, shape=[max_batch_size, height, width, channels], name='input')
 batch_images = tf.reverse(input_x, axis=[-1])  # opencv rgb -bgr
-label = tf.placeholder(tf.float32, shape=[None, height, width, n_classes + 1],
+label = tf.placeholder(tf.float32, shape=[max_batch_size, height, width, n_classes + 1],
                        name='output')  # the n_classes + 1 is for the ignore classes
-mask_label = tf.placeholder(tf.float32, shape=[None, height, width], name='mask')
+mask_label = tf.placeholder(tf.float32, shape=[max_batch_size, height, width], name='mask')
 learning_rate = tf.placeholder(tf.float32, name='learning_rate')
+
 
 # Network
 output = Network.MiniNet(input_x=input_x, n_classes=n_classes, training=training_flag)
@@ -167,14 +166,13 @@ with tf.Session() as sess:
         # Start variables
         global_step = 0
         epoch_learning_rate = init_learning_rate
-        batch_size_decimal = float(init_batch_size)
+        batch_size = int(max_batch_size)
         best_val_loss = float('Inf')
         best_iou = float('-Inf')
         # EPOCH  loop
         for epoch in range(total_epochs):
             # Calculate tvariables for the batch and inizialize others
             time_first = time.time()
-            batch_size = int(batch_size_decimal)
             print ("epoch " + str(epoch + 1) + ", lr: " + str(epoch_learning_rate) + ", batch_size: " + str(batch_size))
 
             total_steps = int(training_samples / batch_size) + 1
@@ -248,7 +246,7 @@ with tf.Session() as sess:
                 epoch_learning_rate = init_learning_rate * math.pow(change_lr_epoch,
                                                                     epoch)  # adamOptimizer does not need lr decay
 
-            batch_size_decimal = batch_size_decimal + change_batch_size
+
     else:
 
         # TEST
