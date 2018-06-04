@@ -7,6 +7,7 @@ from utils.utils import get_parameters
 from Loader import Loader
 import Network
 import math
+
 from lovasz_losses_tf import lovasz_softmax
 random.seed(os.urandom(7))
 
@@ -19,15 +20,15 @@ parser.add_argument("--dimensions", help="Temporal dimensions to get from each s
 parser.add_argument("--augmentation", help="Image augmentation", default=1)
 parser.add_argument("--init_lr", help="Initial learning rate", default=4e-4)
 parser.add_argument("--lr_decay", help="1 for lr decay, 0 for not", default=1)
-parser.add_argument("--min_lr", help="Initial learning rate", default=7e-5)
-parser.add_argument("--max_batch_size", help="batch_size", default=16)
+parser.add_argument("--min_lr", help="Initial learning rate", default=5e-5)
+parser.add_argument("--max_batch_size", help="batch_size", default=8)
 parser.add_argument("--n_classes", help="number of classes to classify", default=19)
 parser.add_argument("--ignore_label", help="class to ignore", default=255)
-parser.add_argument("--epochs", help="Number of epochs to train", default=30)
+parser.add_argument("--epochs", help="Number of epochs to train", default=5)
 parser.add_argument("--width", help="width", default=512)
 parser.add_argument("--height", help="height", default=256)
 parser.add_argument("--save_model", help="save_model", default=1)
-parser.add_argument("--checkpoint_path", help="checkpoint path", default='./models/mininet/')
+parser.add_argument("--checkpoint_path", help="checkpoint path", default='./models/example/')
 parser.add_argument("--train", help="if true, train, if not, test", default=1)
 args = parser.parse_args()
 
@@ -46,7 +47,7 @@ lr_decay = bool(int(args.lr_decay))
 augmentation = bool(int(args.augmentation))
 save_model = bool(int(args.save_model))
 train_or_test = bool(int(args.train))
-init_batch_size = int(args.max_batch_size)
+max_batch_size = int(args.max_batch_size)
 total_epochs = int(args.epochs)
 width = int(args.width)
 n_classes = int(args.n_classes)
@@ -66,15 +67,16 @@ training_samples = len(loader.image_train_list)
 
 # Placeholders
 training_flag = tf.placeholder(tf.bool)
-input_x = tf.placeholder(tf.float32, shape=[None, height, width, channels], name='input')
+input_x = tf.placeholder(tf.float32, shape=[max_batch_size, height, width, channels], name='input')
 batch_images = tf.reverse(input_x, axis=[-1])  # opencv rgb -bgr
-label = tf.placeholder(tf.float32, shape=[None, height, width, n_classes + 1],
+label = tf.placeholder(tf.float32, shape=[max_batch_size, height, width, n_classes + 1],
                        name='output')  # the n_classes + 1 is for the ignore classes
-mask_label = tf.placeholder(tf.float32, shape=[None, height, width], name='mask')
+mask_label = tf.placeholder(tf.float32, shape=[max_batch_size, height, width], name='mask')
 learning_rate = tf.placeholder(tf.float32, name='learning_rate')
 
+
 # Network
-output = Network.MiniNet(input_x=input_x, n_classes=n_classes, training=training_flag)
+output = Network.encoder_decoder_example(input_x=input_x, n_classes=n_classes, training=training_flag)
 
 # Get shapes
 shape_output = tf.shape(output)
@@ -125,8 +127,10 @@ train_variables = tf.trainable_variables() # [var for var in tf.trainable_variab
 stream_vars = [i for i in tf.local_variables() if
                'count' in i.name or 'confusion_matrix' in i.name or 'total' in i.name]
 
+
 # Count parameters
 get_parameters()
+
 
 # For batch norm
 update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
@@ -165,14 +169,13 @@ with tf.Session() as sess:
         # Start variables
         global_step = 0
         epoch_learning_rate = init_learning_rate
-        batch_size_decimal = float(init_batch_size)
+        batch_size = int(max_batch_size)
         best_val_loss = float('Inf')
         best_iou = float('-Inf')
         # EPOCH  loop
         for epoch in range(total_epochs):
             # Calculate tvariables for the batch and inizialize others
             time_first = time.time()
-            batch_size = int(batch_size_decimal)
             print ("epoch " + str(epoch + 1) + ", lr: " + str(epoch_learning_rate) + ", batch_size: " + str(batch_size))
 
             total_steps = int(training_samples / batch_size) + 1

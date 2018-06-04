@@ -21,3 +21,6 @@ def get_parameters():
 		total_parameters += variable_parameters
 	print("Total parameters of the net: " + str(total_parameters)+ " == " + str(total_parameters/1000000.0) + "M")
 
+def preprocess(x):
+	return x.astype(np.float32) / 255.0 - 0.5
+

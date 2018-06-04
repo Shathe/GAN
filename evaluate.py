@@ -7,8 +7,7 @@ import random
 import sys
 import math
 import os
-import NetworkShathe
-
+from utils.utils import preprocess
 from erfnet import erfnetA, erfnetB, erfnetC, erfnetD
 import argparse
 import time
@@ -136,7 +135,7 @@ with tf.device('/cpu:0'):
 	img = cv2.imread(path)
 	label = cv2.imread(path_labels, 0)
 	img = cv2.resize(img, (height, width), interpolation = cv2.INTER_AREA)
-	img = img.astype(np.float32) / 255.0 - 0.5
+	img = preprocess(img)
 	img = np.reshape(img, (1, height, width, channels))
 
 	saver = tf.train.Saver(tf.global_variables())
