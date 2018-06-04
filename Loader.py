@@ -23,7 +23,7 @@ class Loader:
 	#guardar lista de imagenes test y train de una carpeta
 	# opcion de que devuelva la mascara de lo que se aumenta
 	# opcion del tipo de entrenamiento. Clafiicacion, semantica, gan.. eventos
-	def __init__(self, dataFolderPath, width=224, height=224, dim=3, n_classes=21,  problemType='classification', ignore_label=None, median_frequency=0.18):
+	def __init__(self, dataFolderPath, width=224, height=224, dim=3, n_classes=21,  problemType='classification', ignore_label=None, median_frequency=0.25):
 		self.dataFolderPath=dataFolderPath
 		self.height = height
 		self.width = width

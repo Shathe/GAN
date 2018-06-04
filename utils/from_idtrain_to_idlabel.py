@@ -10,7 +10,7 @@ import math
 import sys
 import glob
 
-files = glob.glob(os.path.join('../results/output/*'))
+files = glob.glob(os.path.join('../results/final/*'))
 label_to_train={
     '0': 255,
     '1': 255,

@@ -12,22 +12,22 @@ random.seed(os.urandom(7))
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--dataset", help="Dataset to train",
-                    default='/media/msrobot/discoGordo/Download_april/machine_printed_legible')  # '/media/msrobot/discoGordo/city'
+                    default='/media/msrobot/discoGordo/city2')  # '/media/msrobot/discoGordo/city'
 # /media/msrobot/discoGordo/Download_april/machine_printed_legible
+# '/media/msrobot/discoGordo/city2'
 parser.add_argument("--dimensions", help="Temporal dimensions to get from each sample", default=3)
 parser.add_argument("--augmentation", help="Image augmentation", default=1)
-parser.add_argument("--init_lr", help="Initial learning rate", default=1e-4)
+parser.add_argument("--init_lr", help="Initial learning rate", default=4e-4)
 parser.add_argument("--lr_decay", help="1 for lr decay, 0 for not", default=1)
-parser.add_argument("--min_lr", help="Initial learning rate", default=5e-5)
-parser.add_argument("--init_batch_size", help="batch_size", default=64)
-parser.add_argument("--max_batch_size", help="batch_size", default=64)
-parser.add_argument("--n_classes", help="number of classes to classify", default=2)
-parser.add_argument("--ignore_label", help="class to ignore", default=2)
-parser.add_argument("--epochs", help="Number of epochs to train", default=5)
+parser.add_argument("--min_lr", help="Initial learning rate", default=7e-5)
+parser.add_argument("--max_batch_size", help="batch_size", default=16)
+parser.add_argument("--n_classes", help="number of classes to classify", default=19)
+parser.add_argument("--ignore_label", help="class to ignore", default=255)
+parser.add_argument("--epochs", help="Number of epochs to train", default=30)
 parser.add_argument("--width", help="width", default=512)
 parser.add_argument("--height", help="height", default=256)
 parser.add_argument("--save_model", help="save_model", default=1)
-parser.add_argument("--checkpoint_path", help="checkpoint path", default='./models/model_text/')
+parser.add_argument("--checkpoint_path", help="checkpoint path", default='./models/mininet/')
 parser.add_argument("--train", help="if true, train, if not, test", default=1)
 args = parser.parse_args()
 
@@ -46,8 +46,7 @@ lr_decay = bool(int(args.lr_decay))
 augmentation = bool(int(args.augmentation))
 save_model = bool(int(args.save_model))
 train_or_test = bool(int(args.train))
-init_batch_size = int(args.init_batch_size)
-max_batch_size = int(args.max_batch_size)
+init_batch_size = int(args.max_batch_size)
 total_epochs = int(args.epochs)
 width = int(args.width)
 n_classes = int(args.n_classes)
@@ -55,7 +54,6 @@ ignore_label = int(args.ignore_label)
 height = int(args.height)
 channels = int(args.dimensions)
 change_lr_epoch = math.pow(min_learning_rate / init_learning_rate, 1.0 / total_epochs)
-change_batch_size = (max_batch_size - init_batch_size) / float(total_epochs - 1)
 checkpoint_path = args.checkpoint_path
 augmenter = None
 if augmentation:
@@ -91,8 +89,8 @@ mask_labels = tf.reshape(mask_label, [mask_label_shape[1] * mask_label_shape[0] 
 labels_ignore = labels[:, n_classes]
 labels_real = labels[:, :n_classes]
 
-# cost = tf.losses.softmax_cross_entropy(labels_real, predictions, weights=mask_labels)
-cost = lovasz_softmax(probas=tf.nn.softmax(output), labels=tf.argmax(label, axis=3), classes='present', per_image=False, ignore=n_classes, order='BHWC')
+cost = tf.losses.softmax_cross_entropy(labels_real, predictions, weights=mask_labels)
+# cost = lovasz_softmax(probas=tf.nn.softmax(output), labels=tf.argmax(label, axis=3), classes='present', per_image=False, ignore=n_classes, order='BHWC')
 
 # Metrics
 labels = tf.argmax(labels, 1)
@@ -248,7 +246,7 @@ with tf.Session() as sess:
                 epoch_learning_rate = init_learning_rate * math.pow(change_lr_epoch,
                                                                     epoch)  # adamOptimizer does not need lr decay
 
-            batch_size_decimal = batch_size_decimal + change_batch_size
+
     else:
 
         # TEST

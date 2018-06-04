@@ -13,6 +13,8 @@ def get_augmenter(name, c_val=255, vertical_flip=True):
         few = lambda aug: iaa.Sometimes(0.10, aug)
 
         if 'rgb' in name:
+            scale = random.uniform(0.87, 1.25)
+
             seq_rgb = iaa.Sequential([
 
                 iaa.Fliplr(0.50),  # horizontally flip 50% of the images
@@ -24,7 +26,7 @@ def get_augmenter(name, c_val=255, vertical_flip=True):
                 few(iaa.CoarseDropout(p=(0.05, 0.15), size_percent=(0.15, 0.35), per_channel=False)),
                 sometimes(iaa.ContrastNormalization((0.75, 1.35))),
                 alot(iaa.Affine(
-                    scale={"x": (0.8, 1.2), "y": (0.8, 1.2)},
+                    scale={"x": (scale), "y": (scale)},
                     # scale images to 80-120% of their size, individually per axis
                     translate_percent={"x": (-0.2, 0.2), "y": (-0.2, 0.2)},
                     # translate by -20 to +20 percent (per axis)
@@ -39,6 +41,8 @@ def get_augmenter(name, c_val=255, vertical_flip=True):
 
 
         if 'coral' in name:
+            scale = random.uniform(0.87, 1.25)
+
             seq_rgb = iaa.Sequential([
 
                 iaa.Fliplr(0.50),  # horizontally flip 50% of the images
@@ -48,7 +52,7 @@ def get_augmenter(name, c_val=255, vertical_flip=True):
                 sometimes(iaa.GaussianBlur(sigma=(0, 40))),
                 sometimes(iaa.ContrastNormalization((0.75, 1.35))),
                 alot(iaa.Affine(
-                    scale={"x": (0.7, 1.3), "y": (0.7, 1.3)},
+                    scale={"x": (scale), "y": (scale)},
                     # scale images to 80-120% of their size, individually per axis
                     translate_percent={"x": (-0.2, 0.2), "y": (-0.2, 0.2)},
                     # translate by -20 to +20 percent (per axis)

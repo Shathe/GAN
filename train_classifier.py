@@ -9,13 +9,13 @@ import math
 from utils.utils import get_parameters
 
 
-random.seed(os.urandom(9))
+random.seed(os.urandom(36))
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--dataset", help="Dataset to train", default='/media/msrobot/discoGordo/Corales/patch_data')
 # parser.add_argument("--dataset", help="Dataset to train", default='dataset_classif')  # 'Datasets/MNIST-Big/'
-parser.add_argument("--init_lr", help="Initial learning rate", default=0.05)
-parser.add_argument("--min_lr", help="Initial learning rate", default=5e-4)
+parser.add_argument("--init_lr", help="Initial learning rate", default=2e-3)
+parser.add_argument("--min_lr", help="Initial learning rate", default=1e-4)
 parser.add_argument("--init_batch_size", help="batch_size", default=32)
 parser.add_argument("--max_batch_size", help="batch_size", default=32)
 parser.add_argument("--epochs", help="Number of epochs to train", default=4)
@@ -78,7 +78,7 @@ with tf.control_dependencies(update_ops):
 get_parameters()
 
 # Times to show information of batch traiingn and test
-times_show_per_epoch = 50
+times_show_per_epoch = 1000
 saver = tf.train.Saver(tf.global_variables())
 
 if not os.path.exists('./models/resnet_encoder/best'):
@@ -109,13 +109,12 @@ with tf.Session() as sess:
 
         total_batch = int(training_samples / batch_size)
         show_each_steps = int(total_batch / times_show_per_epoch)
-
         val_loss_acum = 0
         accuracy_rates_acum = 0
         accuracy_training_acum = 0
         train_loss_acum = 0
         times_test = 0
-
+        interm_step = 1
         # steps in every epoch
         for step in range(total_batch):
             # get training data
@@ -135,10 +134,21 @@ with tf.Session() as sess:
             # show info
             if step % show_each_steps == 0:
                 # SHOW TRAIN LOSS AND ACCURACY
+                print("Step:", (step + 1), "Loss:", train_loss_acum / interm_step , "Training accuracy:",
+                      accuracy_training_acum / interm_step )
+
+                train_loss_acum = 0
+                accuracy_training_acum = 0
+                interm_step = 0
+
+            # save state
+            if step % (show_each_steps*10) == 0:
+                # SHOW TRAIN LOSS AND ACCURACY
                 if save_model:
                     saver.save(sess=sess, save_path='./models/resnet_encoder/weigths.ckpt')
-                print("Step:", (step + 1), "Loss:", train_loss_acum / (step + 1), "Training accuracy:",
-                      accuracy_training_acum / (step + 1))
+                    print('model saved')
+
+            interm_step = interm_step + 1
 
         print("Evaluating epoch " + str(epoch) + "...")
 
