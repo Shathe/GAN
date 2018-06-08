@@ -41,20 +41,20 @@ def get_augmenter(name, c_val=255, vertical_flip=True):
 
 
         if 'coral' in name:
-            scale = random.uniform(0.87, 1.25)
+            scale = random.uniform(0.95, 1.18)
 
             seq_rgb = iaa.Sequential([
 
                 iaa.Fliplr(0.50),  # horizontally flip 50% of the images
                 iaa.Flipud(0.50),  # vertically flip 50% of the images
-                sometimes(iaa.Add((-30, 30))),
-                sometimes(iaa.Multiply((0.80, 1.20), per_channel=False)),
+                sometimes(iaa.Add((-12, 12))),
+                sometimes(iaa.Multiply((0.95, 1.10), per_channel=False)),
                 sometimes(iaa.GaussianBlur(sigma=(0, 40))),
-                sometimes(iaa.ContrastNormalization((0.75, 1.35))),
+                sometimes(iaa.ContrastNormalization((0.90, 1.20))),
                 alot(iaa.Affine(
                     scale={"x": (scale), "y": (scale)},
                     # scale images to 80-120% of their size, individually per axis
-                    translate_percent={"x": (-0.2, 0.2), "y": (-0.2, 0.2)},
+                    translate_percent={"x": (-0.1, 0.1), "y": (-0.1, 0.1)},
                     # translate by -20 to +20 percent (per axis)
                     rotate=(-45, 45),  # rotate by -45 to +45 degrees
                     order=1,  #bilinear interpolation (fast)

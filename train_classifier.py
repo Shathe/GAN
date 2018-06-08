@@ -9,16 +9,16 @@ import math
 from utils.utils import get_parameters
 
 
-random.seed(os.urandom(36))
+random.seed(os.urandom(11))
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--dataset", help="Dataset to train", default='/media/msrobot/discoGordo/Corales/patch_data')
 # parser.add_argument("--dataset", help="Dataset to train", default='dataset_classif')  # 'Datasets/MNIST-Big/'
-parser.add_argument("--init_lr", help="Initial learning rate", default=2e-3)
+parser.add_argument("--init_lr", help="Initial learning rate", default=1e-3)
 parser.add_argument("--min_lr", help="Initial learning rate", default=1e-4)
 parser.add_argument("--init_batch_size", help="batch_size", default=32)
 parser.add_argument("--max_batch_size", help="batch_size", default=32)
-parser.add_argument("--epochs", help="Number of epochs to train", default=4)
+parser.add_argument("--epochs", help="Number of epochs to train", default=3)
 parser.add_argument("--width", help="width", default=224)
 parser.add_argument("--height", help="height", default=224)
 parser.add_argument("--save_model", help="save_model", default=1)
@@ -78,7 +78,7 @@ with tf.control_dependencies(update_ops):
 get_parameters()
 
 # Times to show information of batch traiingn and test
-times_show_per_epoch = 1000
+times_show_per_epoch = 50
 saver = tf.train.Saver(tf.global_variables())
 
 if not os.path.exists('./models/resnet_encoder/best'):

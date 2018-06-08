@@ -26,8 +26,7 @@ parser.add_argument("--tensorboard", help="Monitor with Tensorboard", default=0)
 parser.add_argument("--augmentation", help="Image augmentation", default=1)
 parser.add_argument("--init_lr", help="Initial learning rate", default=1e-3)
 parser.add_argument("--min_lr", help="Initial learning rate", default=3e-7)
-parser.add_argument("--init_batch_size", help="batch_size", default=2)
-parser.add_argument("--max_batch_size", help="batch_size", default=2)
+parser.add_argument("--max_batch_size", help="batch_size", default=1)
 parser.add_argument("--n_classes", help="number of classes to classify", default=19)
 parser.add_argument("--ignore_label", help="class to ignore", default=255)
 parser.add_argument("--epochs", help="Number of epochs to train", default=2)
@@ -44,7 +43,6 @@ min_learning_rate = float(args.min_lr)
 augmentation = bool(int(args.augmentation))
 save_model = bool(int(args.save_model ))
 tensorboard = bool(int(args.tensorboard))
-init_batch_size = int(args.init_batch_size)
 max_batch_size = int(args.max_batch_size)
 total_epochs = int(args.epochs)
 width = int(args.width)
@@ -53,7 +51,6 @@ ignore_label = int(args.ignore_label)
 height = int(args.height)
 channels = int(args.dimensions)
 change_lr_epoch = math.pow(min_learning_rate/init_learning_rate, 1.0/total_epochs)
-change_batch_size = (max_batch_size - init_batch_size) / float(total_epochs - 1)
 
 loader = Loader(dataFolderPath=args.dataset, n_classes=n_classes, problemType = 'segmentation', width=width, height=height, ignore_label = ignore_label, median_frequency=0)
 testing_samples = len(loader.image_test_list)
@@ -64,9 +61,9 @@ training_samples = len(loader.image_train_list)
 training_flag = tf.placeholder(tf.bool)
 
 # Placeholder para las imagenes.
-x = tf.placeholder(tf.float32, shape=[None, height, width, channels], name='input')
-label = tf.placeholder(tf.float32, shape=[None, height, width, n_classes+1], name='output') # +1 for ignore class
-mask_label = tf.placeholder(tf.float32, shape=[None, height, width, n_classes], name='mask')
+x = tf.placeholder(tf.float32, shape=[max_batch_size, height, width, channels], name='input')
+label = tf.placeholder(tf.float32, shape=[max_batch_size, height, width, n_classes+1], name='output') # +1 for ignore class
+mask_label = tf.placeholder(tf.float32, shape=[max_batch_size, height, width, n_classes], name='mask')
 # Placeholders para las clases (vector de salida que seran valores de 0-1 por cada clase)
 
 # Network
