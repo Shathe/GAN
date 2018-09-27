@@ -1,54 +1,9 @@
 from __future__ import division
 import tensorflow as tf
 import sys
-sys.path.append("./Semantic-Segmentation-Suite/models")
-import tensorflow.contrib.slim as slim
-
-import resnet_v2
-from DeepLabV3_plus import build_deeplabv3_plus
-from PSPNet import build_pspnet
-
-
-
 # USEFUL LAYERS
 winit = tf.contrib.layers.xavier_initializer()
 l2_regularizer = tf.contrib.layers.l2_regularizer
-
-
-'''
-
-LA ELECCION SE HACE EN BAS EA QUE, EL ESTADO DEL ARTE DE SEG. SEMAN. FCDENSENET, PSPNET, DEEPLAB.. 
-LAS QUE SE BASAN MAS EN EL ENCOEDER, Y POR LO TANTO AFECTA MAS EL PRETARINING SON PSPNET Y SOBRETOOD DEEPLAB Y AMBAS USAN RESNET DE BASE
-'''
-
-
-#https://github.com/GeorgeSeif/Semantic-Segmentation-Suite/blob/master/models/DeepLabV3_plus.py
-
-# Optimal image size (331, 331, 3). Minimum 224,224
-def encoder_resnet101(input_x=None, n_classes=20, is_training=True):
-    with slim.arg_scope(resnet_v2.resnet_arg_scope(weight_decay=1e-5)):
-        logits, end_points = resnet_v2.resnet_v2_101(input_x, is_training=is_training, scope='resnet_v2_101')
-        x = tf.keras.layers.GlobalAveragePooling2D()(logits)
-        x = tf.keras.layers.Dense(n_classes, activation=None, name='predictions_no_softmax')(x)
-        '''
-        same on tensorflow pure
-        # Global average pooling
-        x = tf.reduce_mean(x6_, [1,2])
-        # Last layer 
-        x = tf.layers.dense(x, n_classes)
-        '''
-        return x
-
-
-def encoder_resnet101_decoder_deeplabv3plus(input_x=None, n_classes=20, weights=None, width=224, height=224, channels=3, training=True):
-    network, init_fn = build_deeplabv3_plus(input_x, preset_model = "DeepLabV3_plus-Res101", num_classes=n_classes, is_training=training )
-    return network
-
-def encoder_resnet101_decoder_pspnet(input_x=None, n_classes=20, weights=None, width=224, height=224, channels=3, training=True):
-    network, init_fn = build_pspnet(input_x, label_size=[height, width], num_classes=n_classes, preset_model="PSPNet-Res50", pooling_type = "AVG", weight_decay=1e-5, upscaling_method="conv", is_training=training)
-    return network
-
-
 
 
 
