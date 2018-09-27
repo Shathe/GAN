@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 import tensorflow.contrib.eager as tfe
-import MnasnetEager
+import nets.MnasnetEager as MnasnetEager
 import Loader
 
 # enable eager mode

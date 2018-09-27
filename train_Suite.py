@@ -11,12 +11,11 @@ import numpy as np
 import sys
 from tensorflow.python.ops import control_flow_ops
 
-from tensorflow.python.keras import backend as K
 
-	
 def pre_preprocess (x):
-	#return x.astype(np.float32)/127.5 - 1
-	return tf.keras.applications.resnet50.preprocess_input(x )
+	return x.astype(np.float32) / 255.0
+	# return x.astype(np.float32)/127.5 - 1
+	#x = tf.keras.applications.xception.preprocess_input(x)
 
 
 random.seed(os.urandom(7))
@@ -30,8 +29,8 @@ parser.add_argument("--min_lr", help="Initial learning rate", default=6e-6)  # 5
 parser.add_argument("--batch_size", help="batch_size", default=2)
 parser.add_argument("--n_classes", help="number of classes to classify", default=11)
 parser.add_argument("--epochs", help="Number of epochs to train", default=100)
-parser.add_argument("--width", help="width", default=224)
-parser.add_argument("--height", help="height", default=224)
+parser.add_argument("--width", help="width", default=256)
+parser.add_argument("--height", help="height", default=256)
 parser.add_argument("--save_model", help="save_model", default=1)
 parser.add_argument("--checkpoint_path", help="checkpoint path", default='./models/camvid/')
 parser.add_argument("--train", help="if true, train, if not, test", default=1)
@@ -66,8 +65,8 @@ mask_label = tf.placeholder(tf.float32, shape=[None, height, width], name='mask'
 learning_rate = tf.placeholder(tf.float32, name='learning_rate')
 
 # Network
-output = Network.encoder_decoder_example3(input_x=input_x, n_classes=n_classes, training=training_flag)
-
+output, init_fn = Network.encoder_decoder_example2(input_x=input_x, n_classes=n_classes, training=training_flag)
+print output
 # Get shapes
 shape_output = tf.shape(output)
 label_shape = tf.shape(label)
@@ -106,8 +105,8 @@ stream_vars = [i for i in tf.local_variables() if 'count' in i.name or 'confusio
 # Count parameters
 get_parameters()
 
-K._GRAPH_LEARNING_PHASES[tf.get_default_graph()] = training
-print(K._GRAPH_LEARNING_PHASES)
+
+
 optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)  # adamOptimizer does not need lr decay
 train = optimizer.minimize(cost, var_list=train_variables)  # VARIABLES TO OPTIMIZE
 
@@ -127,6 +126,9 @@ with tf.Session() as sess:
 	sess.run(tf.global_variables_initializer())
 	sess.run(tf.local_variables_initializer())
 
+	if init_fn is not None:
+	    init_fn(sess)
+
 	# get checkpoint if there is one
 	ckpt = tf.train.get_checkpoint_state(checkpoint_path)
 	if ckpt and tf.train.checkpoint_exists(ckpt.model_checkpoint_path):
@@ -140,7 +142,6 @@ with tf.Session() as sess:
 		best_iou = float('-Inf')
 		# EPOCH  loop
 		for epoch in range(total_epochs):
-			K.set_learning_phase(1)
 			# Calculate tvariables for the batch and inizialize others
 			time_first = time.time()
 			epoch_learning_rate = (init_learning_rate - min_learning_rate) * math.pow(1 - epoch / 1. / total_epochs,
@@ -152,7 +153,6 @@ with tf.Session() as sess:
 
 			# steps in every epoch
 			for step in range(total_steps):
-
 				# get training data
 				batch_x, batch_y, batch_mask = loader.get_batch(size=batch_size, train=True, augmenter=augmenter)
 
@@ -163,7 +163,6 @@ with tf.Session() as sess:
 					mask_label: batch_mask,
 					training_flag: True
 				}
-				
 				_, loss = sess.run([train, cost], feed_dict=train_feed_dict)
 				# show info
 				if step % 10 == 0:
@@ -172,7 +171,6 @@ with tf.Session() as sess:
 
 			# TEST
 			loss_acum = 0.0
-			K.set_learning_phase(0)
 			for i in xrange(0, testing_samples):
 				x_test, y_test, mask_test = loader.get_batch(size=1, train=False)
 				test_feed_dict = {
@@ -218,8 +216,6 @@ with tf.Session() as sess:
 
 		# TEST
 		loss_acum = 0.0
-		K.set_learning_phase(False)
-
 		for i in xrange(0, testing_samples):
 			x_test, y_test, mask_test = loader.get_batch(size=1, train=False)
 			test_feed_dict = {

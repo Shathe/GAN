@@ -78,5 +78,44 @@ def encoder_decoder_example(input_x=None, n_classes=20, training=True):
 
 
 
+def encoder_decoder_example3(input_x=None, n_classes=20, training=True):
+    # IF YOU USE THIS, CHANGE THE PREPROCESSING
+    
+    model = tf.keras.applications.ResNet50(include_top=False, weights='imagenet',input_tensor=input_x,  pooling='avg')
+    # bn_conv1/keras_learning_phase:0
+    #x = tf.get_default_graph().get_tensor_by_name("bn_conv1/keras_learning_phase:0")
+    #print(x)
+    #x = tf.assign(x, concat, validate_shape=False) # We force TF, to skip the shape validation step
 
+    # SET KERAS VARIABLE IS TRAINING
+    x = model.outputs[0]
+    e0 = tf.get_default_graph().get_tensor_by_name("activation/Relu:0")
+    e1 = tf.get_default_graph().get_tensor_by_name("add_2/add:0")
+    e2 = tf.get_default_graph().get_tensor_by_name("add_6/add:0")
+    e3 = tf.get_default_graph().get_tensor_by_name("add_12/add:0")
+    e4 = tf.get_default_graph().get_tensor_by_name("add_15/add:0")  
+    x12 = deconv2d_bn(e2, 128, (3, 3), padding='same', strides=(2, 2),  training=training)
+    x12 = conv2d(x12, 128, (3, 3), padding='same', strides=(1, 1), dilation_rate=(1, 1), training=training)
+    x12 = conv2d(x12, 128, (3, 3), padding='same', strides=(1, 1), dilation_rate=(1, 1), training=training)
+    x12 = conv2d(x12, 128, (3, 3), padding='same', strides=(1, 1), dilation_rate=(1, 1), training=training)
+    x12 = deconv2d_bn(x12, 128, (3, 3), padding='same', strides=(2, 2),  training=training)
+    x12 = conv2d(x12, 64, (3, 3), padding='same', strides=(1, 1), dilation_rate=(1, 1), training=training)
+    x14 = conv2d(x12, 64, (3, 3), padding='same', strides=(1, 1), dilation_rate=(1, 1), training=training)
+    x15 = deconv2d_bn(x14, 32, (3, 3), padding='same', strides=(2, 2),  training=training)
+    x16 = conv2d(x15, n_classes, (1, 1), padding='same', strides=(1, 1), dilation_rate=(1, 1), training=training, last=True)
+    return x16, model
+
+
+import sys
+sys.path.append('Suite')
+sys.path.append('Suite/models')
+sys.path.append('Suite/builders')
+
+import Suite.models.DDSC as DDSC
+import tensorflow.contrib.slim as slim
+
+def encoder_decoder_example2(input_x=None, n_classes=20, training=True):
+    
+    x, init_fn = DDSC.build_ddsc(input_x, n_classes, preset_model='DDSC', frontend="ResNet50", weight_decay=1e-5, is_training=training, pretrained_dir="models")
+    return x, init_fn
 

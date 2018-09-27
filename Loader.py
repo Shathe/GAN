@@ -1,6 +1,7 @@
 from __future__ import print_function
 import os
 import numpy as np
+from keras.preprocessing import image
 from keras.utils.np_utils import to_categorical
 import glob
 import cv2
@@ -213,7 +214,11 @@ class Loader:
 			if self.dim == 1:
 				img = cv2.imread(random_images[index], 0)
 			else:
-				img = cv2.imread(random_images[index])
+				#img = cv2.imread(random_images[index])
+				img = image.load_img(random_images[index])
+				img = image.img_to_array(img)
+
+
 
 			label = cv2.imread(random_labels[index], 0)
 			mask_image = mask[index, :, :]
@@ -253,9 +258,6 @@ class Loader:
 		y = to_categorical(y, num_classes=self.n_classes)
 		y = y.reshape((a,b,c,self.n_classes)).astype(np.uint8)
 
-		#tf.keras.applications.imagenet_utils.preprocess_input(x, mode='tf')
-		#x = tf.keras.applications.xception.preprocess_input(x)
-		x = preprocess(x)
 		return x, y, mask
 
 
@@ -304,11 +306,6 @@ class Loader:
 			augmenter_seq = get_augmenter(name=augmenter)
 			x = augmenter_seq.augment_images(x)
 
-
-		#x = x.astype(np.float32) 
-		#tf.keras.applications.imagenet_utils.preprocess_input(x, mode='tf')
-		#x = tf.keras.applications.xception.preprocess_input(x)
-		x = x.astype(np.float32) / 255.0 - 0.5
 
 		return x, y
 
