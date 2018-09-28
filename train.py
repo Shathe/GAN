@@ -106,8 +106,7 @@ stream_vars = [i for i in tf.local_variables() if 'count' in i.name or 'confusio
 # Count parameters
 get_parameters()
 
-K._GRAPH_LEARNING_PHASES[tf.get_default_graph()] = training
-print(K._GRAPH_LEARNING_PHASES)
+K._GRAPH_LEARNING_PHASES[tf.get_default_graph()] = training_flag
 optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)  # adamOptimizer does not need lr decay
 train = optimizer.minimize(cost, var_list=train_variables)  # VARIABLES TO OPTIMIZE
 
@@ -155,7 +154,6 @@ with tf.Session() as sess:
 
 				# get training data
 				batch_x, batch_y, batch_mask = loader.get_batch(size=batch_size, train=True, augmenter=augmenter)
-
 				train_feed_dict = {
 					input_x: pre_preprocess(batch_x),
 					label: batch_y,
